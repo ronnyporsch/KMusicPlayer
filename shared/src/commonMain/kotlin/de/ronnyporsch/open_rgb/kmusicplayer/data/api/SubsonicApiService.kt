@@ -1,0 +1,160 @@
+package de.ronnyporsch.open_rgb.kmusicplayer.data.api
+
+import de.ronnyporsch.open_rgb.kmusicplayer.data.dto.SubsonicResponse
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerConfig
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.json.Json
+
+class SubsonicApiService {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+    }
+
+    private val client = HttpClient {
+        install(ContentNegotiation) {
+            json(json)
+        }
+    }
+
+    private var config: ServerConfig? = null
+
+    fun configure(serverConfig: ServerConfig) {
+        config = serverConfig
+    }
+
+    val isConfigured: Boolean get() = config != null
+
+    private fun baseUrl(): String {
+        val cfg = config ?: throw IllegalStateException("Server not configured")
+        return cfg.serverUrl.trimEnd('/')
+    }
+
+    private fun HttpRequestBuilder.addAuthParams() {
+        val cfg = config ?: throw IllegalStateException("Server not configured")
+        parameter("u", cfg.username)
+        parameter("t", cfg.token)
+        parameter("s", cfg.salt)
+        parameter("v", "1.16.1")
+        parameter("c", "KMusicPlayer")
+        parameter("f", "json")
+    }
+
+    suspend fun ping(): Boolean {
+        return try {
+            val response: SubsonicResponse = client.get("${baseUrl()}/rest/ping.view") {
+                addAuthParams()
+            }.body()
+            response.subsonicResponse.status == "ok"
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun getArtists(): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getArtists.view") {
+            addAuthParams()
+        }.body()
+    }
+
+    suspend fun getArtist(id: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getArtist.view") {
+            addAuthParams()
+            parameter("id", id)
+        }.body()
+    }
+
+    suspend fun getArtistInfo2(id: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getArtistInfo2.view") {
+            addAuthParams()
+            parameter("id", id)
+        }.body()
+    }
+
+    suspend fun getAlbum(id: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getAlbum.view") {
+            addAuthParams()
+            parameter("id", id)
+        }.body()
+    }
+
+    suspend fun getPlaylists(): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getPlaylists.view") {
+            addAuthParams()
+        }.body()
+    }
+
+    suspend fun getPlaylist(id: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getPlaylist.view") {
+            addAuthParams()
+            parameter("id", id)
+        }.body()
+    }
+
+    suspend fun createPlaylist(name: String, songId: String? = null): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/createPlaylist.view") {
+            addAuthParams()
+            parameter("name", name)
+            if (songId != null) {
+                parameter("songId", songId)
+            }
+        }.body()
+    }
+
+    suspend fun updatePlaylist(
+        playlistId: String,
+        songIdsToAdd: List<String> = emptyList(),
+        songIndicesToRemove: List<Int> = emptyList()
+    ): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/updatePlaylist.view") {
+            addAuthParams()
+            parameter("playlistId", playlistId)
+            songIdsToAdd.forEach { parameter("songIdToAdd", it) }
+            songIndicesToRemove.forEach { parameter("songIndexToRemove", it) }
+        }.body()
+    }
+
+    suspend fun search(query: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/search3.view") {
+            addAuthParams()
+            parameter("query", query)
+            parameter("artistCount", 10)
+            parameter("albumCount", 10)
+            parameter("songCount", 20)
+        }.body()
+    }
+
+    suspend fun searchSongs(query: String, songCount: Int = 500): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/search3.view") {
+            addAuthParams()
+            parameter("query", query)
+            parameter("artistCount", 0)
+            parameter("albumCount", 0)
+            parameter("songCount", songCount)
+        }.body()
+    }
+
+    /** Asks the server to rescan its music folders. Requires an admin user on Navidrome. */
+    suspend fun startScan(): Boolean {
+        val response: SubsonicResponse = client.get("${baseUrl()}/rest/startScan.view") {
+            addAuthParams()
+        }.body()
+        return response.subsonicResponse.status == "ok"
+    }
+
+    fun getStreamUrl(songId: String): String {
+        val cfg = config ?: throw IllegalStateException("Server not configured")
+        return "${baseUrl()}/rest/stream.view?id=$songId&u=${cfg.username}&t=${cfg.token}&s=${cfg.salt}&v=1.16.1&c=KMusicPlayer"
+    }
+
+    fun getCoverArtUrl(coverArtId: String, size: Int = 300): String {
+        val cfg = config ?: throw IllegalStateException("Server not configured")
+        return "${baseUrl()}/rest/getCoverArt.view?id=$coverArtId&size=$size&u=${cfg.username}&t=${cfg.token}&s=${cfg.salt}&v=1.16.1&c=KMusicPlayer"
+    }
+}

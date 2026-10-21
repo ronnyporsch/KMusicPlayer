@@ -1,0 +1,145 @@
+package de.ronnyporsch.open_rgb.kmusicplayer.data.dto
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class SubsonicResponse(
+    @SerialName("subsonic-response") val subsonicResponse: SubsonicResponseBody,
+)
+
+@Serializable
+data class SubsonicResponseBody(
+    val status: String = "",
+    val version: String = "",
+    val error: SubsonicError? = null,
+    val artists: ArtistsDto? = null,
+    val artist: ArtistWithAlbumsDto? = null,
+    val album: AlbumWithSongsDto? = null,
+    val playlists: PlaylistsDto? = null,
+    val playlist: PlaylistWithSongsDto? = null,
+    val searchResult3: SearchResult3Dto? = null,
+    val artistInfo2: ArtistInfo2Dto? = null,
+)
+
+@Serializable
+data class SubsonicError(
+    val code: Int = 0,
+    val message: String = "",
+)
+
+@Serializable
+data class ArtistsDto(
+    val index: List<ArtistIndexDto> = emptyList(),
+)
+
+@Serializable
+data class ArtistIndexDto(
+    val name: String = "",
+    val artist: List<ArtistDto> = emptyList(),
+)
+
+@Serializable
+data class ArtistDto(
+    val id: String = "",
+    val name: String = "",
+    val albumCount: Int = 0,
+    val coverArt: String? = null,
+)
+
+@Serializable
+data class ArtistWithAlbumsDto(
+    val id: String = "",
+    val name: String = "",
+    val albumCount: Int = 0,
+    val coverArt: String? = null,
+    val album: List<AlbumDto> = emptyList(),
+)
+
+@Serializable
+data class AlbumDto(
+    val id: String = "",
+    val name: String = "",
+    val artist: String = "",
+    val artistId: String = "",
+    /** OpenSubsonic: every artist credited in the tags, in tag order. */
+    val artists: List<ArtistDto> = emptyList(),
+    val coverArt: String? = null,
+    val songCount: Int = 0,
+    val year: Int? = null,
+    val duration: Int = 0,
+)
+
+@Serializable
+data class AlbumWithSongsDto(
+    val id: String = "",
+    val name: String = "",
+    val artist: String = "",
+    val artistId: String = "",
+    /** OpenSubsonic: every artist credited in the tags, in tag order. */
+    val artists: List<ArtistDto> = emptyList(),
+    val coverArt: String? = null,
+    val songCount: Int = 0,
+    val year: Int? = null,
+    val duration: Int = 0,
+    val song: List<SongDto> = emptyList(),
+)
+
+@Serializable
+data class SongDto(
+    val id: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val artistId: String = "",
+    /** OpenSubsonic: every artist credited in the tags, in tag order. */
+    val artists: List<ArtistDto> = emptyList(),
+    val album: String = "",
+    val albumId: String = "",
+    val coverArt: String? = null,
+    val duration: Int = 0,
+    val track: Int? = null,
+    val discNumber: Int? = null,
+    val year: Int? = null,
+    val genre: String? = null,
+    val bitRate: Int? = null,
+)
+
+@Serializable
+data class PlaylistsDto(
+    val playlist: List<PlaylistDto> = emptyList(),
+)
+
+@Serializable
+data class PlaylistDto(
+    val id: String = "",
+    val name: String = "",
+    val songCount: Int = 0,
+    val duration: Int = 0,
+    val coverArt: String? = null,
+)
+
+@Serializable
+data class PlaylistWithSongsDto(
+    val id: String = "",
+    val name: String = "",
+    val songCount: Int = 0,
+    val duration: Int = 0,
+    val coverArt: String? = null,
+    val entry: List<SongDto> = emptyList(),
+)
+
+@Serializable
+data class ArtistInfo2Dto(
+    val biography: String? = null,
+    val musicBrainzId: String? = null,
+    val smallImageUrl: String? = null,
+    val mediumImageUrl: String? = null,
+    val largeImageUrl: String? = null,
+)
+
+@Serializable
+data class SearchResult3Dto(
+    val artist: List<ArtistDto> = emptyList(),
+    val album: List<AlbumDto> = emptyList(),
+    val song: List<SongDto> = emptyList(),
+)

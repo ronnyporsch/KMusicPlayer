@@ -1,0 +1,1322 @@
+package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.AlphabetScroller
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.VerticalScrollbar
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
+import kotlinx.coroutines.launch
+
+@Composable
+fun LibraryScreen(
+    viewModel: LibraryViewModel,
+    currentSongId: String? = null,
+) {
+    val state by viewModel.state.collectAsState()
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    var draggingSong by remember { mutableStateOf<Song?>(null) }
+
+    if (showCreatePlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylistDialog = false },
+            title = { Text("Create New Playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    label = { Text("Playlist Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPlaylistName.isNotBlank()) {
+                            viewModel.onEvent(LibraryEvent.CreatePlaylist(newPlaylistName))
+                            newPlaylistName = ""
+                            showCreatePlaylistDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+    ) {
+        Text(
+            text = "Your Library",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        if (draggingSong != null) {
+            Surface(
+                color = SpotifyGreen.copy(alpha = 0.9f),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Adding \"${draggingSong?.title}\" to a playlist. Select a playlist in the sidebar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    TextButton(
+                        onClick = { draggingSong = null },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        if (state.isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = SpotifyGreen)
+            }
+        } else if (state.error != null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(state.error!!, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { viewModel.onEvent(LibraryEvent.Refresh) }) {
+                        Text("Retry", color = SpotifyGreen)
+                    }
+                }
+            }
+        } else {
+            LibrarySplitView(
+                state = state,
+                viewModel = viewModel,
+                currentSongId = currentSongId,
+                onCreatePlaylist = { showCreatePlaylistDialog = true },
+                onDragStart = { draggingSong = it },
+                onDragEnd = { draggingSong = null },
+                draggingSong = draggingSong,
+                onDropSong = { playlist, song ->
+                    viewModel.onEvent(LibraryEvent.AddSongToPlaylist(playlist, song))
+                    draggingSong = null
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun LibrarySplitView(
+    state: LibraryState,
+    viewModel: LibraryViewModel,
+    currentSongId: String?,
+    onCreatePlaylist: () -> Unit,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    draggingSong: Song?,
+    onDropSong: (Playlist, Song) -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        LibrarySidebar(
+            state = state,
+            viewModel = viewModel,
+            onCreatePlaylist = onCreatePlaylist,
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            draggingSong = draggingSong,
+            onDropSong = onDropSong,
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight(),
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        LibraryDetailPane(
+            state = state,
+            viewModel = viewModel,
+            currentSongId = currentSongId,
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        )
+    }
+}
+
+@Composable
+private fun LibrarySidebar(
+    state: LibraryState,
+    viewModel: LibraryViewModel,
+    onCreatePlaylist: () -> Unit,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    draggingSong: Song?,
+    onDropSong: (Playlist, Song) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(0.dp),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            TabRow(
+                selectedTabIndex = state.selectedSidebarTab.ordinal,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onBackground,
+            ) {
+                LibrarySidebarTab.entries.forEach { tab ->
+                    Tab(
+                        selected = state.selectedSidebarTab == tab,
+                        onClick = { viewModel.onEvent(LibraryEvent.SidebarTabSelected(tab)) },
+                        text = {
+                            Text(
+                                tab.name,
+                                fontWeight = if (state.selectedSidebarTab == tab) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            when (state.selectedSidebarTab) {
+                LibrarySidebarTab.Artists -> ArtistSidebar(
+                    artists = state.artists,
+                    selectedArtistId = state.selectedArtistId,
+                    onArtistClick = { viewModel.onEvent(LibraryEvent.ArtistClicked(it)) },
+                    onArtistDoubleClick = { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) },
+                    state = viewModel.artistSidebarState,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                LibrarySidebarTab.Albums -> AlbumSidebar(
+                    albums = state.albums,
+                    selectedAlbumId = state.selectedAlbumId,
+                    onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumClicked(it)) },
+                    onAlbumDoubleClick = { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) },
+                    state = viewModel.albumSidebarState,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                LibrarySidebarTab.Playlists -> PlaylistSidebar(
+                    playlists = state.playlists,
+                    selectedPlaylistId = state.selectedPlaylistId,
+                    onPlaylistClick = { viewModel.onEvent(LibraryEvent.PlaylistClicked(it)) },
+                    onPlaylistDoubleClick = { viewModel.onEvent(LibraryEvent.PlaylistDoubleClicked(it)) },
+                    onCreatePlaylist = onCreatePlaylist,
+                    draggingSong = draggingSong,
+                    onDropSong = onDropSong,
+                    state = viewModel.playlistSidebarState,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryDetailPane(
+    state: LibraryState,
+    viewModel: LibraryViewModel,
+    currentSongId: String?,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (state.activeDetailView) {
+        LibraryDetailView.Artists -> ArtistDetailPane(
+            artist = state.selectedArtist,
+            albums = state.selectedArtistAlbums,
+            biography = state.selectedArtistBiography,
+            largeImageUrl = state.selectedArtistLargeImageUrl,
+            songs = state.selectedArtistSongs,
+            isSongsLoading = state.selectedArtistSongsLoading,
+            onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumOpened(it)) },
+            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongClicked(song, index)) },
+            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongDoubleClicked(song, index)) },
+            isSelected = { it == state.selectedSongId },
+            isPlaying = { it == currentSongId },
+            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllArtistSongs) },
+            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllArtistSongs) },
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            state = viewModel.artistDetailState,
+            modifier = modifier,
+        )
+        LibraryDetailView.Albums -> AlbumDetailPane(
+            album = state.selectedAlbum,
+            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
+            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
+            isSelected = { it == state.selectedSongId },
+            isPlaying = { it == currentSongId },
+            onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
+            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllAlbumSongs) },
+            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllAlbumSongs) },
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            state = viewModel.albumDetailState,
+            modifier = modifier,
+        )
+        LibraryDetailView.Playlists -> PlaylistDetailPane(
+            playlist = state.selectedPlaylist,
+            isLoading = state.selectedPlaylistLoading,
+            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
+            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
+            onRemoveClick = { song, index ->
+                state.selectedPlaylist?.let {
+                    viewModel.onEvent(LibraryEvent.RemoveSongFromPlaylist(it, index))
+                }
+            },
+            isSelected = { it == state.selectedSongId },
+            isPlaying = { it == currentSongId },
+            onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
+            onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
+            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllPlaylistSongs) },
+            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllPlaylistSongs) },
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            state = viewModel.playlistDetailState,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun ArtistSplitView(
+    state: LibraryState,
+    viewModel: LibraryViewModel,
+    currentSongId: String?,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        ArtistSidebar(
+            artists = state.artists,
+            selectedArtistId = state.selectedArtistId,
+            onArtistClick = { viewModel.onEvent(LibraryEvent.ArtistClicked(it)) },
+            onArtistDoubleClick = { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) },
+            state = viewModel.artistSidebarState,
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight(),
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        ArtistDetailPane(
+            artist = state.selectedArtist,
+            albums = state.selectedArtistAlbums,
+            biography = state.selectedArtistBiography,
+            largeImageUrl = state.selectedArtistLargeImageUrl,
+            songs = state.selectedArtistSongs,
+            isSongsLoading = state.selectedArtistSongsLoading,
+            onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumOpened(it)) },
+            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongClicked(song, index)) },
+            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongDoubleClicked(song, index)) },
+            isSelected = { it == state.selectedSongId },
+            isPlaying = { it == currentSongId },
+            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllArtistSongs) },
+            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllArtistSongs) },
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            state = viewModel.artistDetailState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        )
+    }
+}
+
+@Composable
+private fun AlbumSplitView(
+    state: LibraryState,
+    viewModel: LibraryViewModel,
+    currentSongId: String?,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        AlbumSidebar(
+            albums = state.albums,
+            selectedAlbumId = state.selectedAlbumId,
+            onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumClicked(it)) },
+            onAlbumDoubleClick = { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) },
+            state = viewModel.albumSidebarState,
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight(),
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        AlbumDetailPane(
+            album = state.selectedAlbum,
+            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
+            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
+            isSelected = { it == state.selectedSongId },
+            isPlaying = { it == currentSongId },
+            onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
+            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllAlbumSongs) },
+            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllAlbumSongs) },
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            state = viewModel.albumDetailState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        )
+    }
+}
+
+@Composable
+private fun ArtistSidebar(
+    artists: List<Artist>,
+    selectedArtistId: String?,
+    onArtistClick: (Artist) -> Unit,
+    onArtistDoubleClick: (Artist) -> Unit,
+    state: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(12.dp),
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = state,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        itemsIndexed(artists, key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" }) { _, artist ->
+                            val isSelected = artist.id == selectedArtistId
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(0.dp))
+                                    .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
+                                    .combinedClickable(
+                                        onClick = { onArtistClick(artist) },
+                                        onDoubleClick = { onArtistDoubleClick(artist) }
+                                    )
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ArtistImage(
+                                    url = coverArt.getUrl(artist.coverArtId),
+                                    artistName = artist.name,
+                                    modifier = Modifier.size(44.dp),
+                                )
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = artist.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = "${artist.albumCount} album${if (artist.albumCount != 1) "s" else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    AlphabetScroller(
+                        alphabet = artists.mapNotNull { it.name.firstOrNull()?.uppercaseChar() }.distinct().sorted(),
+                        onCharClicked = { char ->
+                            val index = artists.indexOfFirst { it.name.firstOrNull()?.uppercaseChar() == char }
+                            if (index != -1) {
+                                scope.launch { state.animateScrollToItem(index) }
+                            }
+                        }
+                    )
+                }
+
+                VerticalScrollbar(
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    state = state
+                )
+            }
+        }
+    }
+
+    @Composable
+private fun ArtistDetailPane(
+    artist: Artist?,
+    albums: List<Album>,
+    biography: String?,
+    largeImageUrl: String?,
+    songs: List<Song>,
+    isSongsLoading: Boolean,
+    onAlbumClick: (Album) -> Unit,
+    onSongClick: (Song, Int) -> Unit,
+    onSongDoubleClick: (Song, Int) -> Unit,
+    isSelected: (String) -> Boolean,
+    isPlaying: (String) -> Boolean,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    state: LazyGridState,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(0.dp),
+    ) {
+        if (artist == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "Select an artist to see its library details",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyVerticalGrid(
+                state = state,
+                columns = GridCells.Adaptive(minSize = 160.dp),
+                contentPadding = PaddingValues(bottom = 100.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        val currentIndex = songs.indexOfFirst { isSelected(it.id) }
+                        when (event.key) {
+                            Key.DirectionDown -> {
+                                if (currentIndex < songs.size - 1) {
+                                    onSongClick(songs[currentIndex + 1], currentIndex + 1)
+                                    true
+                                } else false
+                            }
+                            Key.DirectionUp -> {
+                                if (currentIndex > 0) {
+                                    onSongClick(songs[currentIndex - 1], currentIndex - 1)
+                                    true
+                                } else false
+                            }
+                            else -> false
+                        }
+                    } else false
+                }
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ArtistHeader(
+                        artistName = artist.name,
+                        imageUrl = largeImageUrl,
+                        biography = biography,
+                    )
+                }
+
+                if (albums.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = "Albums",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+
+                    items(albums, key = { it.id }) { album ->
+                        AlbumCard(album) { onAlbumClick(album) }
+                    }
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "Songs",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                    )
+                }
+
+                if (isSongsLoading) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = SpotifyGreen, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                } else if (songs.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Button(
+                                onClick = onPlayAll,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                shape = RoundedCornerShape(0.dp),
+                            ) {
+                                Text("\u25B6  Play All", fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = onShuffle,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(0.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                            ) {
+                                Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    itemsIndexed(
+                        songs,
+                        key = { _, song -> song.id },
+                        span = { _, _ -> GridItemSpan(maxLineSpan) },
+                    ) { index, song ->
+                        SongRow(
+                            song = song,
+                            index = index,
+                            onSongClick = { onSongClick(song, index) },
+                            onSongDoubleClick = { onSongDoubleClick(song, index) },
+                            onDragStart = onDragStart,
+                            onDragEnd = onDragEnd,
+                            isSelected = isSelected(song.id),
+                            isPlaying = isPlaying(song.id),
+                            onArtistClick = { /* Already in artist view */ },
+                            showAlbum = true,
+                            showArtist = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlbumSidebar(
+    albums: List<Album>,
+    selectedAlbumId: String?,
+    onAlbumClick: (Album) -> Unit,
+    onAlbumDoubleClick: (Album) -> Unit,
+    state: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(12.dp),
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = state,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        itemsIndexed(albums, key = { index, album -> "${album.id.ifEmpty { "no-id" }}::${album.name}::${album.artist}::${album.coverArtId ?: "no-art"}::$index" }) { _, album ->
+                            val isSelected = album.id == selectedAlbumId
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(0.dp))
+                                    .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
+                                    .combinedClickable(
+                                        onClick = { onAlbumClick(album) },
+                                        onDoubleClick = { onAlbumDoubleClick(album) }
+                                    )
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CoverArtImage(
+                                    url = coverArt.getUrl(album.coverArtId),
+                                    modifier = Modifier.size(44.dp),
+                                    cornerRadius = 0.dp,
+                                    placeholderFontSize = 18.sp,
+                                )
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = album.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val details = buildString {
+                                        append(album.artist.ifBlank { "Unknown artist" })
+                                        if (album.songCount > 0) {
+                                            append(" \u2022 ")
+                                            append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
+                                        }
+                                    }
+                                    Text(
+                                        text = details,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    AlphabetScroller(
+                        alphabet = albums.mapNotNull { it.name.firstOrNull()?.uppercaseChar() }.distinct().sorted(),
+                        onCharClicked = { char ->
+                            val index = albums.indexOfFirst { it.name.firstOrNull()?.uppercaseChar() == char }
+                            if (index != -1) {
+                                scope.launch { state.animateScrollToItem(index) }
+                            }
+                        }
+                    )
+                }
+
+                VerticalScrollbar(
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    state = state
+                )
+            }
+        }
+    }
+
+    @Composable
+private fun AlbumDetailPane(
+    album: Album?,
+    onSongClick: (Song, Int) -> Unit,
+    onSongDoubleClick: (Song, Int) -> Unit,
+    isSelected: (String) -> Boolean,
+    isPlaying: (String) -> Boolean,
+    onArtistClick: (String) -> Unit,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    state: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val coverArt = LocalCoverArtUrlProvider.current
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(0.dp),
+    ) {
+        if (album == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "Select an album to see its songs",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                state = state,
+                contentPadding = PaddingValues(bottom = 100.dp),
+                modifier = Modifier.onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        val currentIndex = album.songs.indexOfFirst { isSelected(it.id) }
+                        when (event.key) {
+                            Key.DirectionDown -> {
+                                if (currentIndex < album.songs.size - 1) {
+                                    onSongClick(album.songs[currentIndex + 1], currentIndex + 1)
+                                    true
+                                } else false
+                            }
+                            Key.DirectionUp -> {
+                                if (currentIndex > 0) {
+                                    onSongClick(album.songs[currentIndex - 1], currentIndex - 1)
+                                    true
+                                } else false
+                            }
+                            else -> false
+                        }
+                    } else false
+                }
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CoverArtImage(
+                            url = coverArt.getUrl(album.coverArtId),
+                            modifier = Modifier.size(200.dp),
+                            placeholderFontSize = 60.sp,
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Text(
+                            text = album.name,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+
+                        ClickableArtistText(
+                            artists = album.artists,
+                            fallback = album.artist.ifBlank { "Unknown artist" },
+                            onArtistClick = onArtistClick,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+
+                        val albumInfo = buildString {
+                            append("Album")
+                            if (album.year != null) {
+                                append(" \u2022 ")
+                                append(album.year)
+                            }
+                            if (album.songCount > 0) {
+                                append(" \u2022 ")
+                                append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
+                            }
+                        }
+                        Text(
+                            text = albumInfo,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            onClick = onPlayAll,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                            shape = RoundedCornerShape(0.dp),
+                        ) {
+                            Text("\u25B6  Play", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onShuffle,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                        ) {
+                            Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                itemsIndexed(album.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
+                    SongRow(
+                        song = song,
+                        index = index,
+                        onArtistClick = onArtistClick,
+                        onSongClick = { onSongClick(song, index) },
+                        onSongDoubleClick = { onSongDoubleClick(song, index) },
+                        onDragStart = onDragStart,
+                        onDragEnd = onDragEnd,
+                        isSelected = isSelected(song.id),
+                        isPlaying = isPlaying(song.id),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistHeader(
+    artistName: String,
+    imageUrl: String?,
+    biography: String?,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ArtistImage(
+            url = imageUrl,
+            artistName = artistName,
+            modifier = Modifier.size(180.dp),
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            text = artistName,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+
+        if (!biography.isNullOrBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = biography,
+                style = MaterialTheme.typography.bodyMedium,
+                color = SpotifyLightGray,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumCard(album: Album, onClick: () -> Unit) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(0.dp))
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+    ) {
+        CoverArtImage(
+            url = coverArt.getUrl(album.coverArtId),
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+            placeholderFontSize = 40.sp,
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = album.name,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        Text(
+            text = album.year?.toString() ?: "",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+
+@Composable
+private fun PlaylistSplitView(
+    state: LibraryState,
+    viewModel: LibraryViewModel,
+    currentSongId: String?,
+    onCreatePlaylist: () -> Unit,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    draggingSong: Song?,
+    onDropSong: (Playlist, Song) -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        PlaylistSidebar(
+            playlists = state.playlists,
+            selectedPlaylistId = state.selectedPlaylistId,
+            onPlaylistClick = { viewModel.onEvent(LibraryEvent.PlaylistClicked(it)) },
+            onPlaylistDoubleClick = { viewModel.onEvent(LibraryEvent.PlaylistDoubleClicked(it)) },
+            onCreatePlaylist = onCreatePlaylist,
+            draggingSong = draggingSong,
+            onDropSong = onDropSong,
+            state = viewModel.playlistSidebarState,
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight(),
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        PlaylistDetailPane(
+            playlist = state.selectedPlaylist,
+            isLoading = state.selectedPlaylistLoading,
+            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
+            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
+            onRemoveClick = { song, index -> 
+                state.selectedPlaylist?.let {
+                    viewModel.onEvent(LibraryEvent.RemoveSongFromPlaylist(it, index))
+                }
+            },
+            isSelected = { it == state.selectedSongId },
+            isPlaying = { it == currentSongId },
+            onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
+            onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
+            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllPlaylistSongs) },
+            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllPlaylistSongs) },
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            state = viewModel.playlistDetailState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        )
+    }
+}
+
+@Composable
+private fun PlaylistSidebar(
+    playlists: List<Playlist>,
+    selectedPlaylistId: String?,
+    onPlaylistClick: (Playlist) -> Unit,
+    onPlaylistDoubleClick: (Playlist) -> Unit,
+    onCreatePlaylist: () -> Unit,
+    draggingSong: Song?,
+    onDropSong: (Playlist, Song) -> Unit,
+    state: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Playlists",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            TextButton(onClick = onCreatePlaylist) {
+                Text("+ New", color = SpotifyGreen, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = state,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(playlists, key = { it.id }) { playlist ->
+                            val isSelected = playlist.id == selectedPlaylistId
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(0.dp))
+                                    .background(
+                                        if (isSelected) SpotifyGreen.copy(alpha = 0.16f) 
+                                        else if (draggingSong != null) SpotifyGreen.copy(alpha = 0.08f)
+                                        else Color.Transparent
+                                    )
+                                    .combinedClickable(
+                                        onClick = { 
+                                            if (draggingSong != null) {
+                                                onDropSong(playlist, draggingSong)
+                                            } else {
+                                                onPlaylistClick(playlist) 
+                                            }
+                                        },
+                                        onDoubleClick = { 
+                                            if (draggingSong == null) onPlaylistDoubleClick(playlist) 
+                                        }
+                                    )
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CoverArtImage(
+                                    url = coverArt.getUrl(playlist.coverArtId),
+                                    modifier = Modifier.size(44.dp),
+                                    cornerRadius = 0.dp,
+                                    placeholderFontSize = 18.sp,
+                                )
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = playlist.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = "${playlist.songCount} song${if (playlist.songCount != 1) "s" else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    AlphabetScroller(
+                        alphabet = playlists.mapNotNull { it.name.firstOrNull()?.uppercaseChar() }.distinct().sorted(),
+                        onCharClicked = { char ->
+                            val index = playlists.indexOfFirst { it.name.firstOrNull()?.uppercaseChar() == char }
+                            if (index != -1) {
+                                scope.launch { state.animateScrollToItem(index) }
+                            }
+                        }
+                    )
+                }
+
+                VerticalScrollbar(
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    state = state
+                )
+            }
+        }
+    }
+
+    @Composable
+private fun PlaylistDetailPane(
+    playlist: Playlist?,
+    isLoading: Boolean,
+    onSongClick: (Song, Int) -> Unit,
+    onSongDoubleClick: (Song, Int) -> Unit,
+    onRemoveClick: (Song, Int) -> Unit,
+    isSelected: (String) -> Boolean,
+    isPlaying: (String) -> Boolean,
+    onArtistClick: (String) -> Unit,
+    onAlbumClick: (String) -> Unit,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onDragStart: (Song) -> Unit,
+    onDragEnd: () -> Unit,
+    state: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val coverArt = LocalCoverArtUrlProvider.current
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(0.dp),
+    ) {
+        when {
+            isLoading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = SpotifyGreen)
+                }
+            }
+
+            playlist == null -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "Select a playlist to see its songs",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    state = state,
+                    contentPadding = PaddingValues(bottom = 100.dp),
+                    modifier = Modifier.onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown) {
+                            val currentIndex = playlist.songs.indexOfFirst { isSelected(it.id) }
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    if (currentIndex < playlist.songs.size - 1) {
+                                        onSongClick(playlist.songs[currentIndex + 1], currentIndex + 1)
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionUp -> {
+                                    if (currentIndex > 0) {
+                                        onSongClick(playlist.songs[currentIndex - 1], currentIndex - 1)
+                                        true
+                                    } else false
+                                }
+                                else -> false
+                            }
+                        } else false
+                    }
+                ) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            CoverArtImage(
+                                url = coverArt.getUrl(playlist.coverArtId),
+                                modifier = Modifier.size(200.dp),
+                                placeholderFontSize = 60.sp,
+                            )
+
+                            Spacer(Modifier.height(16.dp))
+
+                            Text(
+                                text = playlist.name,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+
+                            Text(
+                                text = "Playlist",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+
+                            Text(
+                                text = "${playlist.songCount} songs",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Button(
+                                onClick = onPlayAll,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                shape = RoundedCornerShape(0.dp),
+                            ) {
+                                Text("\u25B6  Play", fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = onShuffle,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(0.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                            ) {
+                                Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    itemsIndexed(playlist.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
+                        SongRow(
+                            song = song,
+                            index = index,
+                            onSongClick = { onSongClick(song, index) },
+                            onSongDoubleClick = { onSongDoubleClick(song, index) },
+                            onRemoveClick = { onRemoveClick(song, index) },
+                            onDragStart = onDragStart,
+                            onDragEnd = onDragEnd,
+                            isSelected = isSelected(song.id),
+                            isPlaying = isPlaying(song.id),
+                            onArtistClick = onArtistClick,
+                            onAlbumClick = onAlbumClick,
+                            showAlbum = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

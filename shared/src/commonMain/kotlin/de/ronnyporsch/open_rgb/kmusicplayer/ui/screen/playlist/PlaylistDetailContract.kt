@@ -1,0 +1,26 @@
+package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.playlist
+
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+
+data class PlaylistDetailState(
+    val playlist: Playlist? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val selectedSongId: String? = null,
+)
+
+sealed class PlaylistDetailEvent {
+    data class SongClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
+    data class SongDoubleClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
+    data object PlayAll : PlaylistDetailEvent()
+    data object ShuffleAll : PlaylistDetailEvent()
+    data class ArtistClicked(val artistName: String) : PlaylistDetailEvent()
+    data class AlbumClicked(val albumId: String) : PlaylistDetailEvent()
+}
+
+sealed class PlaylistDetailEffect {
+    data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlaylistDetailEffect()
+    data class NavigateToArtist(val artistName: String) : PlaylistDetailEffect()
+    data class NavigateToAlbum(val albumId: String) : PlaylistDetailEffect()
+}

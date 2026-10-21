@@ -1,0 +1,102 @@
+package de.ronnyporsch.open_rgb.kmusicplayer.domain.model
+
+data class ServerConfig(
+    val serverUrl: String,
+    val username: String,
+    val token: String,
+    val salt: String,
+)
+
+data class Artist(
+    val id: String,
+    val name: String,
+    val albumCount: Int = 0,
+    val coverArtId: String? = null,
+)
+
+data class ArtistInfo(
+    val biography: String? = null,
+    val largeImageUrl: String? = null,
+)
+
+data class Album(
+    val id: String,
+    val name: String,
+    val artist: String = "",
+    val artistId: String = "",
+    val artists: List<Artist> = emptyList(),
+    val coverArtId: String? = null,
+    val songCount: Int = 0,
+    val year: Int? = null,
+    val duration: Int = 0,
+    val songs: List<Song> = emptyList(),
+)
+
+data class Song(
+    val id: String,
+    val title: String,
+    val artist: String = "",
+    val artistId: String = "",
+    val artists: List<Artist> = emptyList(),
+    val album: String = "",
+    val albumId: String = "",
+    val coverArtId: String? = null,
+    val duration: Int = 0,
+    val track: Int? = null,
+    val discNumber: Int? = null,
+    val year: Int? = null,
+    val genre: String? = null,
+    val bitRate: Int? = null,
+)
+
+data class Playlist(
+    val id: String,
+    val name: String,
+    val songCount: Int = 0,
+    val duration: Int = 0,
+    val coverArtId: String? = null,
+    val songs: List<Song> = emptyList(),
+)
+
+enum class PlaybackStatus {
+    Idle, Playing, Paused, Buffering
+}
+
+data class PlaybackState(
+    val status: PlaybackStatus = PlaybackStatus.Idle,
+    val currentSong: Song? = null,
+    val queue: List<Song> = emptyList(),
+    val currentIndex: Int = -1,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val shuffle: Boolean = false,
+    val repeatMode: RepeatMode = RepeatMode.Off,
+    val crossfadeEnabled: Boolean = false,
+)
+
+enum class RepeatMode {
+    Off, All, One
+}
+
+fun Int.formatDuration(): String {
+    val minutes = this / 60
+    val seconds = this % 60
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
+}
+
+fun Long.formatDurationMs(): String {
+    val totalSeconds = (this / 1000).toInt()
+    return totalSeconds.formatDuration()
+}
+
+/** Songs from YouTube Music carry this prefix in [Song.id]; they are not part of the Subsonic library. */
+const val YOUTUBE_SONG_ID_PREFIX = "yt:"
+
+/** Stream URL scheme understood by platform audio players that can resolve YouTube Music tracks. */
+const val YOUTUBE_STREAM_SCHEME = "ytmusic:"
+
+val Song.isYouTube: Boolean
+    get() = id.startsWith(YOUTUBE_SONG_ID_PREFIX)
+
+val Song.youTubeVideoId: String?
+    get() = if (isYouTube) id.removePrefix(YOUTUBE_SONG_ID_PREFIX) else null
