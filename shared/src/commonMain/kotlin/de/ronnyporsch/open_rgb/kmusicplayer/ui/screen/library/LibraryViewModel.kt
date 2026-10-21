@@ -1,11 +1,10 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library
 
-import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
-import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
-import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
+import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -40,6 +39,7 @@ class LibraryViewModel(
                         selectedArtist = event.artist,
                         selectedArtistId = event.artist.id,
                         selectedArtistAlbums = emptyList(),
+                        selectedArtistAppearsOnAlbums = emptyList(),
                         selectedArtistBiography = null,
                         selectedArtistLargeImageUrl = null,
                         selectedArtistSongs = emptyList(),
@@ -101,6 +101,7 @@ class LibraryViewModel(
                         selectedArtistId = null,
                         selectedArtist = null,
                         selectedArtistAlbums = emptyList(),
+                        selectedArtistAppearsOnAlbums = emptyList(),
                         selectedArtistBiography = null,
                         selectedArtistLargeImageUrl = null,
                         selectedArtistSongs = emptyList(),
@@ -133,6 +134,7 @@ class LibraryViewModel(
                         selectedArtistId = null,
                         selectedArtist = null,
                         selectedArtistAlbums = emptyList(),
+                        selectedArtistAppearsOnAlbums = emptyList(),
                         selectedArtistBiography = null,
                         selectedArtistLargeImageUrl = null,
                         selectedArtistSongs = emptyList(),
@@ -167,6 +169,7 @@ class LibraryViewModel(
                         selectedAlbumId = null,
                         selectedAlbum = null,
                         selectedArtistAlbums = emptyList(),
+                        selectedArtistAppearsOnAlbums = emptyList(),
                         selectedArtistBiography = null,
                         selectedArtistLargeImageUrl = null,
                         selectedArtistSongs = emptyList(),
@@ -351,6 +354,7 @@ class LibraryViewModel(
                             selectedArtist = artist,
                             selectedArtistId = artist.id,
                             selectedArtistAlbums = emptyList(),
+                            selectedArtistAppearsOnAlbums = emptyList(),
                             selectedArtistBiography = null,
                             selectedArtistLargeImageUrl = null,
                             selectedArtistSongs = emptyList(),
@@ -421,6 +425,7 @@ class LibraryViewModel(
                 loadArtistAlbums(artist.id)
                 loadArtistInfo(artist.id)
             } else {
+                loadAppearsOnAlbums(artistName, emptyList())
                 loadArtistSongs(artistName, emptyList())
             }
         }
@@ -434,10 +439,25 @@ class LibraryViewModel(
                 .onSuccess { albums ->
                     val dedupedAlbums = albums.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }
                     setState { copy(selectedArtistAlbums = dedupedAlbums) }
+                    loadAppearsOnAlbums(
+                        currentState.selectedArtist?.name.orEmpty(),
+                        dedupedAlbums.map { it.id },
+                    )
                     loadArtistSongs(
                         currentState.selectedArtist?.name.orEmpty(),
                         dedupedAlbums.map { it.id },
                     )
+                }
+        }
+    }
+
+    private fun loadAppearsOnAlbums(artistName: String, albumIds: List<String>) {
+        if (artistName.isBlank()) return
+
+        launch {
+            repository.getAppearsOnAlbums(artistName, albumIds)
+                .onSuccess { albums ->
+                    setState { copy(selectedArtistAppearsOnAlbums = albums) }
                 }
         }
     }

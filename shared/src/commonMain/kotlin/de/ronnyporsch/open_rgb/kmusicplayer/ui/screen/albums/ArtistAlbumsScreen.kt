@@ -3,14 +3,12 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,8 +18,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
@@ -103,6 +99,23 @@ fun ArtistAlbumsScreen(
                     }
 
                     items(state.albums, key = { it.id }) { album ->
+                        AlbumCard(album) {
+                            viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album))
+                        }
+                    }
+                }
+
+                if (state.appearsOnAlbums.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = "Appears on",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                        )
+                    }
+
+                    items(state.appearsOnAlbums, key = { it.id }) { album ->
                         AlbumCard(album) {
                             viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album))
                         }

@@ -9,6 +9,7 @@ data class ArtistAlbumsState(
     val biography: String? = null,
     val largeImageUrl: String? = null,
     val albums: List<Album> = emptyList(),
+    val appearsOnAlbums: List<Album> = emptyList(),
     val songs: List<Song> = emptyList(),
     val isLoading: Boolean = false,
     val isSongsLoading: Boolean = false,

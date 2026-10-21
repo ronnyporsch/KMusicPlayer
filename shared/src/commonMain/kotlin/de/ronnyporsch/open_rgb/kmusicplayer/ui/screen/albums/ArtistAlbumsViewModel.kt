@@ -61,11 +61,13 @@ class ArtistAlbumsViewModel(
                     } else {
                         // Artist not in index (e.g. featured/collaborative artist) — search songs
                         setState { copy(isLoading = false) }
+                        loadAppearsOnAlbums(artistName, emptyList())
                         loadSongs(emptyList())
                     }
                 }
                 .onFailure {
                     setState { copy(isLoading = false) }
+                    loadAppearsOnAlbums(artistName, emptyList())
                     loadSongs(emptyList())
                 }
         }
@@ -78,9 +80,17 @@ class ArtistAlbumsViewModel(
                 .onSuccess { albums ->
                     val dedupedAlbums = albums.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }
                     setState { copy(albums = dedupedAlbums, isLoading = false) }
+                    loadAppearsOnAlbums(artistName, dedupedAlbums.map { it.id })
                     loadSongs(dedupedAlbums.map { it.id })
                 }
                 .onFailure { setState { copy(error = it.message, isLoading = false) } }
+        }
+    }
+
+    private fun loadAppearsOnAlbums(artistName: String, albumIds: List<String>) {
+        launch {
+            repository.getAppearsOnAlbums(artistName, albumIds)
+                .onSuccess { setState { copy(appearsOnAlbums = it) } }
         }
     }
 

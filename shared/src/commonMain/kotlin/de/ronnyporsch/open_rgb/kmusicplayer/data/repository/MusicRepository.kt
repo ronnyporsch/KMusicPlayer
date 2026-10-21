@@ -7,11 +7,26 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
+internal fun collectAppearsOnAlbumIds(
+    artistName: String,
+    ownAlbumIds: Collection<String>,
+    songs: List<Song>,
+): List<String> {
+    if (artistName.isBlank()) return emptyList()
+    return songs
+        .asSequence()
+        .mapNotNull { it.albumId.takeIf { it.isNotBlank() } }
+        .filterNot { it in ownAlbumIds }
+        .distinct()
+        .toList()
+}
+
 interface MusicRepository {
     val isConfigured: Boolean
     suspend fun ping(): Boolean
     suspend fun getArtists(): Result<List<Artist>>
     suspend fun getArtistAlbums(artistId: String): Result<List<Album>>
+    suspend fun getAppearsOnAlbums(artistName: String, ownAlbumIds: List<String>): Result<List<Album>>
     suspend fun getArtistInfo(artistId: String): Result<ArtistInfo>
     suspend fun getAlbum(albumId: String): Result<Album>
     suspend fun getPlaylists(): Result<List<Playlist>>
@@ -59,6 +74,22 @@ class MusicRepositoryImpl(
         val response = api.getArtist(artistId)
         val body = response.subsonicResponse
         body.artist?.album?.map { it.toDomain() }?.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } } ?: emptyList()
+    }
+
+    override suspend fun getAppearsOnAlbums(artistName: String, ownAlbumIds: List<String>): Result<List<Album>> = runCatching {
+        if (artistName.isBlank()) return@runCatching emptyList()
+
+        val creditedSongs = findSongsByArtistName(artistName).getOrDefault(emptyList())
+        val albumIds = collectAppearsOnAlbumIds(artistName, ownAlbumIds, creditedSongs)
+        if (albumIds.isEmpty()) return@runCatching emptyList()
+
+        albumIds.mapNotNull { albumId ->
+            getAlbum(albumId).getOrNull()?.takeIf { album ->
+                album.id.isNotBlank() &&
+                    !album.artist.equals(artistName, ignoreCase = true) &&
+                    album.artist.isNotBlank()
+            }
+        }.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }
     }
 
     override suspend fun getArtistInfo(artistId: String): Result<ArtistInfo> = runCatching {

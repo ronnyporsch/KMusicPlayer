@@ -4,6 +4,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.data.api.toDomain
 import de.ronnyporsch.open_rgb.kmusicplayer.data.dto.AlbumDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.dto.ArtistDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.dto.SongDto
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.collectAppearsOnAlbumIds
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDurationMs
 import de.ronnyporsch.open_rgb.kmusicplayer.util.md5
@@ -137,5 +140,47 @@ class SharedCommonTest {
     @Test
     fun song_without_artist_has_no_credits() {
         assertTrue(SongDto(id = "s1", title = "Song").toDomain().artists.isEmpty())
+    }
+
+    @Test
+    fun appears_on_album_ids_exclude_primary_albums_and_duplicates() {
+        val songs = listOf(
+            Song(
+                id = "s1",
+                title = "Track 1",
+                artist = "Main Artist",
+                album = "Collaborative Album",
+                albumId = "feat-1",
+                artists = listOf(Artist(id = "a1", name = "Featured Artist"), Artist(id = "a2", name = "Main Artist")),
+            ),
+            Song(
+                id = "s2",
+                title = "Track 2",
+                artist = "Other Artist",
+                album = "Another Album",
+                albumId = "feat-2",
+                artists = listOf(Artist(id = "a1", name = "Featured Artist")),
+            ),
+            Song(
+                id = "s3",
+                title = "Track 3",
+                artist = "Main Artist",
+                album = "Own Album",
+                albumId = "own-1",
+                artists = listOf(Artist(id = "a2", name = "Main Artist")),
+            ),
+            Song(
+                id = "s4",
+                title = "Track 4",
+                artist = "Other Artist",
+                album = "Collaborative Album",
+                albumId = "feat-1",
+                artists = listOf(Artist(id = "a1", name = "Featured Artist"), Artist(id = "a2", name = "Main Artist")),
+            ),
+        )
+
+        val albumIds = collectAppearsOnAlbumIds("Featured Artist", listOf("own-1"), songs)
+
+        assertEquals(listOf("feat-1", "feat-2"), albumIds)
     }
 }
