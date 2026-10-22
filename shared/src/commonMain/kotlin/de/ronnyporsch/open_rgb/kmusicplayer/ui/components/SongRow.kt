@@ -6,10 +6,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -17,6 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -83,12 +93,36 @@ fun SongRow(
     var rowHeight by remember { mutableStateOf(0) }
     val currentContextMenuSongs by rememberUpdatedState(contextMenuSongs)
 
+    // Mobile: swiping the row to the right adds the song to the queue
+    val addToQueue = LocalAddToQueue.current
+    val swipeEnabled = platform.isMobile && addToQueue != null
+    var swipeOffset by remember { mutableFloatStateOf(0f) }
+    val swipeThreshold = with(density) { 72.dp.toPx() }
+    val swipeMax = with(density) { 120.dp.toPx() }
+    val haptics = LocalHapticFeedback.current
+
     val openMenu = { if (hasContextMenu) menuSongs = currentContextMenuSongs() }
     val background = if (isSelected || menuSongs != null) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
 
     val rowModifier = if (platform.isMobile) {
         modifier
             .fillMaxWidth()
+            .offset { IntOffset(swipeOffset.roundToInt(), 0) }
+            .draggable(
+                orientation = Orientation.Horizontal,
+                enabled = swipeEnabled,
+                state = rememberDraggableState { delta ->
+                    val new = (swipeOffset + delta).coerceIn(0f, swipeMax)
+                    if (swipeOffset < swipeThreshold && new >= swipeThreshold) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                    swipeOffset = new
+                },
+                onDragStopped = {
+                    if (swipeOffset >= swipeThreshold) addToQueue?.invoke(listOf(song))
+                    animate(swipeOffset, 0f) { value, _ -> swipeOffset = value }
+                },
+            )
+            // Opaque while swiping so the queue icon behind the row doesn't show through
+            .then(if (swipeOffset != 0f) Modifier.background(MaterialTheme.colorScheme.background) else Modifier)
             .background(background)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
@@ -129,6 +163,19 @@ fun SongRow(
     }
 
     Box {
+        if (swipeOffset > 0f) {
+            Box(
+                modifier = Modifier.matchParentSize().background(SpotifyGreen.copy(alpha = if (swipeOffset >= swipeThreshold) 0.35f else 0.15f)),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.QueueMusic,
+                    contentDescription = "Add to queue",
+                    tint = SpotifyGreen,
+                    modifier = Modifier.padding(start = 24.dp),
+                )
+            }
+        }
         Row(
             modifier = rowModifier.onSizeChanged { rowHeight = it.height }.padding(contentPadding),
             verticalAlignment = Alignment.CenterVertically,

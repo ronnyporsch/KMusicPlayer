@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +42,12 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    // Clicking a result unfocuses the search bar, which hides the soft keyboard on mobile
+    val onResultClick: (SearchEvent) -> Unit = { event ->
+        focusManager.clearFocus()
+        viewModel.onEvent(event)
+    }
 
     Column(
         modifier = Modifier
@@ -90,7 +97,7 @@ fun SearchScreen(
                     }
                     items(state.artists, key = { "artist-${it.id}" }) { artist ->
                         SearchArtistRow(artist) {
-                            viewModel.onEvent(SearchEvent.ArtistClicked(artist))
+                            onResultClick(SearchEvent.ArtistClicked(artist))
                         }
                     }
                 }
@@ -101,7 +108,7 @@ fun SearchScreen(
                     }
                     items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
                         SearchPlaylistRow(playlist) {
-                            viewModel.onEvent(SearchEvent.PlaylistClicked(playlist))
+                            onResultClick(SearchEvent.PlaylistClicked(playlist))
                         }
                     }
                 }
@@ -113,8 +120,8 @@ fun SearchScreen(
                     items(state.albums, key = { "album-${it.id}" }) { album ->
                         SearchAlbumRow(
                             album = album,
-                            onArtistClick = { name -> viewModel.onEvent(SearchEvent.ArtistNameClicked(name)) },
-                            onClick = { viewModel.onEvent(SearchEvent.AlbumClicked(album)) },
+                            onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
+                            onClick = { onResultClick(SearchEvent.AlbumClicked(album)) },
                         )
                     }
                 }
@@ -126,9 +133,9 @@ fun SearchScreen(
                     itemsIndexed(state.songs, key = { _, song -> "song-${song.id}" }) { index, song ->
                         SongRow(
                             song = song,
-                            onArtistClick = { name -> viewModel.onEvent(SearchEvent.ArtistNameClicked(name)) },
-                            onSongClick = { viewModel.onEvent(SearchEvent.SongClicked(song, index)) },
-                            onSongDoubleClick = { viewModel.onEvent(SearchEvent.SongDoubleClicked(song, index)) },
+                            onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
+                            onSongClick = { onResultClick(SearchEvent.SongClicked(song, index)) },
+                            onSongDoubleClick = { onResultClick(SearchEvent.SongDoubleClicked(song, index)) },
                             onSongCtrlClick = { viewModel.onEvent(SearchEvent.SongSelectionToggled(song)) },
                             contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
                             isSelected = song.id in state.selectedSongIds,
@@ -177,7 +184,7 @@ fun SearchScreen(
                     }
                     items(state.youTubeArtists, key = { "yt-artist-${it.id}" }) { artist ->
                         SearchArtistRow(artist, subtitle = "Artist \u2022 YouTube Music") {
-                            viewModel.onEvent(SearchEvent.ArtistClicked(artist))
+                            onResultClick(SearchEvent.ArtistClicked(artist))
                         }
                     }
                     itemsIndexed(state.youTubeSongs, key = { _, song -> "yt-${song.id}" }) { index, song ->
@@ -186,10 +193,10 @@ fun SearchScreen(
                             SongRow(
                                 song = song,
                                 onArtistClick = { name ->
-                                    viewModel.onEvent(SearchEvent.ArtistNameClicked(name, song.youTubeArtistId(name)))
+                                    onResultClick(SearchEvent.ArtistNameClicked(name, song.youTubeArtistId(name)))
                                 },
-                                onSongClick = { viewModel.onEvent(SearchEvent.YouTubeSongClicked(song, index)) },
-                                onSongDoubleClick = { viewModel.onEvent(SearchEvent.YouTubeSongDoubleClicked(song, index)) },
+                                onSongClick = { onResultClick(SearchEvent.YouTubeSongClicked(song, index)) },
+                                onSongDoubleClick = { onResultClick(SearchEvent.YouTubeSongDoubleClicked(song, index)) },
                                 isSelected = song.id in state.selectedSongIds,
                                 isPlaying = currentSongId == song.id,
                                 showAlbum = true,
