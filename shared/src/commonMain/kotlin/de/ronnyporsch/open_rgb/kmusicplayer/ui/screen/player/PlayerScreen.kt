@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.QueueTab
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDurationMs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.AudioFormatText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
@@ -62,6 +63,7 @@ fun PlayerScreen(
     onArtistClick: (artistName: String) -> Unit,
     onAlbumClick: (albumId: String) -> Unit,
     onBack: () -> Unit,
+    onQueueClick: (QueueTab) -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val playback = state.playback
@@ -93,7 +95,10 @@ fun PlayerScreen(
                     tint = MaterialTheme.colorScheme.onBackground,
                 )
             }
-            FavoriteButton(FavoriteKind.Song, song?.id)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                QueueButtons(openTab = null, onClick = onQueueClick)
+                FavoriteButton(FavoriteKind.Song, song?.id)
+            }
         }
 
         // Songs without lyrics show their cover; the lyrics come back for the next song that has some

@@ -35,6 +35,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalMusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.Navigator
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.QueueTab
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.Screen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library.*
@@ -48,6 +49,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsScr
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalFavorites
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.DuplicateSongsDialog
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalAddToQueue
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragOverlay
@@ -82,6 +84,13 @@ fun App() {
     val playlistEditor = remember {
         PlaylistEditor(repository, scope) { message ->
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
+    val addToQueue: (List<Song>) -> Unit = remember {
+        { songs ->
+            playerViewModel.onEvent(PlayerEvent.AddToQueue(songs))
+            val what = songs.singleOrNull()?.let { "\"${it.title}\"" } ?: "${songs.size} songs"
+            scope.launch { snackbarHostState.showSnackbar("Added $what to the queue", duration = SnackbarDuration.Short) }
         }
     }
     val libraryViewModel = remember {
@@ -176,6 +185,7 @@ fun App() {
             LocalCoverArtUrlProvider provides coverArtUrlProvider,
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
+            LocalAddToQueue provides addToQueue,
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
         ) {
@@ -268,6 +278,8 @@ fun App() {
                                 onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                                 onClick = { navigator.push(Screen.Player) },
                                 onLyricsClick = { navigator.push(Screen.Player) },
+                                onQueueClick = { tab -> toggleQueue(navigator, tab) },
+                                openQueueTab = (currentScreen as? Screen.Queue)?.tab,
                             )
                         } else {
                             Box(Modifier.height(66.dp))
@@ -421,6 +433,17 @@ fun App() {
                             },
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                             onBack = { navigator.pop() },
+                            onQueueClick = { tab -> navigator.push(Screen.Queue(tab)) },
+                        )
+                    }
+
+                    is Screen.Queue -> {
+                        QueueScreen(
+                            viewModel = playerViewModel,
+                            tab = screen.tab,
+                            onTabSelected = { navigator.replace(Screen.Queue(it)) },
+                            onArtistClick = { name -> navigator.push(Screen.ArtistAlbums(null, name)) },
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                         )
                     }
 
@@ -445,6 +468,16 @@ fun App() {
         DuplicateSongsDialog(playlistEditor)
         }
         }
+    }
+}
+
+/** Shows [tab] of the queue screen, or leaves it if it's shown already. */
+private fun toggleQueue(navigator: Navigator, tab: QueueTab) {
+    val screen = navigator.currentScreen.value
+    when {
+        screen is Screen.Queue && screen.tab == tab -> navigator.pop()
+        screen is Screen.Queue -> navigator.replace(Screen.Queue(tab))
+        else -> navigator.push(Screen.Queue(tab))
     }
 }
 

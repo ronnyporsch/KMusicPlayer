@@ -60,7 +60,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
     val favorites = Favorites(online)
 
     /** Identifies the saved server for the offline data. */
-    private fun serverKey(): String = settingsHolder.settings.value.let { "${it.serverType}|${it.serverUrl}|${it.username}" }
+    private fun serverKey(): String = settingsHolder.settings.value.serverKey
 
     /**
      * Connects to the server (and remembers the connection if [save]). Throws with a user-facing message on failure,

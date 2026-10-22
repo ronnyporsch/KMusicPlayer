@@ -2,6 +2,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.InvalidCredentialsException
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicServerConnection
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.PlayHistory
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.CrossfadeAudioPlayer
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.createAudioPlayer
@@ -28,7 +29,7 @@ class AppSession private constructor() {
     val settingsHolder = SettingsHolder()
     val connection = MusicServerConnection(settingsHolder)
     private val audioPlayer = CrossfadeAudioPlayer(createAudioPlayer(), createAudioPlayer())
-    val playerViewModel = PlayerViewModel(audioPlayer, connection.repository, settingsHolder)
+    val playerViewModel = PlayerViewModel(audioPlayer, connection.repository, settingsHolder, PlayHistory { settingsHolder.settings.value.serverKey })
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     /** Whether there was a saved login when the session started; then it connects in the background. */

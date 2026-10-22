@@ -57,6 +57,7 @@ fun SongRow(
     isPlaying: Boolean = false,
     onSongDoubleClick: (() -> Unit)? = null,
     onRemoveClick: (() -> Unit)? = null,
+    removeDescription: String = "Remove from playlist",
     trailingContent: (@Composable () -> Unit)? = null,
     /** Codec and bitrate, shown left of the duration. */
     audioFormat: AudioStreamInfo? = null,
@@ -71,8 +72,9 @@ fun SongRow(
     val platform = getPlatform()
     val density = LocalDensity.current
 
-    // YouTube Music results aren't in the library, so they can't be added to playlists
-    val hasContextMenu = LocalPlaylistEditor.current != null && !song.isYouTube
+    val hasContextMenu = LocalPlaylistEditor.current != null || LocalAddToQueue.current != null
+    // YouTube Music results aren't in the library, so they can't be dropped onto playlists
+    val isDraggable = LocalPlaylistEditor.current != null && !song.isYouTube
     var menuSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pressPosition by remember { mutableStateOf(Offset.Zero) }
     var ctrlPressed by remember { mutableStateOf(false) }
@@ -100,7 +102,7 @@ fun SongRow(
             .fillMaxWidth()
             .background(background)
             // Library songs can be dragged onto playlists; with a selection the drag takes all selected songs
-            .songDragSource(enabled = hasContextMenu) { currentContextMenuSongs() }
+            .songDragSource(enabled = isDraggable) { currentContextMenuSongs() }
             .pointerInput(hasContextMenu) {
                 awaitPointerEventScope {
                     while (true) {
@@ -209,7 +211,7 @@ fun SongRow(
                 TooltipIconButton(
                     onClick = onRemoveClick,
                     icon = Icons.Default.Close,
-                    contentDescription = "Remove from playlist",
+                    contentDescription = removeDescription,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(24.dp)
                 )

@@ -12,8 +12,14 @@ sealed class Screen {
     data class PlaylistSongs(val playlistId: String) : Screen()
     data object FavoriteSongs : Screen()
     data object Player : Screen()
+    data class Queue(val tab: QueueTab) : Screen()
     data object Search : Screen()
     data object Settings : Screen()
+}
+
+enum class QueueTab(val title: String) {
+    Queue("Queue"),
+    RecentlyPlayed("Recently played"),
 }
 
 class Navigator(initialScreen: Screen = Screen.Login) {
@@ -44,6 +50,12 @@ class Navigator(initialScreen: Screen = Screen.Login) {
         backStack.add(screen)
         _currentScreen.value = screen
         return true
+    }
+
+    /** Replaces the current screen without a way back to it, e.g. switching tabs. */
+    fun replace(screen: Screen) {
+        backStack[backStack.lastIndex] = screen
+        _currentScreen.value = screen
     }
 
     fun replaceAll(screen: Screen) {

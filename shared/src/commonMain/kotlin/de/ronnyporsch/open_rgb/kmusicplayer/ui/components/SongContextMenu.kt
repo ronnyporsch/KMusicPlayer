@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -18,6 +19,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTube
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -112,6 +114,9 @@ fun DuplicateSongsDialog(editor: PlaylistEditor) {
 
 val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }
 
+/** Adds songs to the player's queue, from the song context menu. */
+val LocalAddToQueue = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
+
 fun Set<String>.toggled(songId: String): Set<String> = if (songId in this) this - songId else this + songId
 
 /** The songs a context menu on [song] acts on: the selection if [song] is part of it, otherwise only [song]. */
@@ -126,12 +131,16 @@ fun SongContextMenu(
     songs: List<Song>,
     offset: DpOffset,
 ) {
-    val editor = LocalPlaylistEditor.current ?: return
+    val editor = LocalPlaylistEditor.current
+    val addToQueue = LocalAddToQueue.current
+    if (editor == null && addToQueue == null) return
+    // YouTube Music results aren't in the library, so they can't be added to playlists
+    val canAddToPlaylist = editor != null && songs.none { it.isYouTube }
     var showPlaylists by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     // The menu forgets the songs when it closes, but the dialog outlives it
     var dialogSongs by remember { mutableStateOf(emptyList<Song>()) }
-    val playlists by editor.playlists.collectAsState()
+    val playlists by (editor?.playlists ?: remember { MutableStateFlow(emptyList<Playlist>()) }).collectAsState()
     val favorites = LocalFavorites.current
     val favoriteIds by (favorites?.ids ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
 
@@ -150,6 +159,16 @@ fun SongContextMenu(
             HorizontalDivider()
         }
         if (!showPlaylists) {
+            if (addToQueue != null) {
+                DropdownMenuItem(
+                    text = { Text("Add to queue") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null) },
+                    onClick = {
+                        addToQueue(songs)
+                        onDismiss()
+                    },
+                )
+            }
             if (favorites != null) {
                 val favoriteSongs = songs.filter { favorites.canBeFavorite(it.id) }
                 if (favoriteSongs.isNotEmpty()) {
@@ -167,15 +186,17 @@ fun SongContextMenu(
                     )
                 }
             }
-            DropdownMenuItem(
-                text = { Text("Add to playlist") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null) },
-                onClick = {
-                    editor.refreshPlaylists()
-                    showPlaylists = true
-                },
-            )
-        } else {
+            if (canAddToPlaylist) {
+                DropdownMenuItem(
+                    text = { Text("Add to playlist") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null) },
+                    onClick = {
+                        editor?.refreshPlaylists()
+                        showPlaylists = true
+                    },
+                )
+            }
+        } else if (editor != null) {
             DropdownMenuItem(
                 text = { Text("Back") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) },
@@ -203,7 +224,7 @@ fun SongContextMenu(
         }
     }
 
-    if (showCreateDialog) {
+    if (showCreateDialog && editor != null) {
         var name by remember { mutableStateOf("") }
         val create = {
             if (name.isNotBlank()) {

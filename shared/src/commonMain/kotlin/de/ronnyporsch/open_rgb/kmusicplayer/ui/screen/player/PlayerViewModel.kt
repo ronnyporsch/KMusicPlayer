@@ -1,6 +1,8 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.PlayHistory
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackState
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.audioFormat
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
@@ -19,6 +21,7 @@ class PlayerViewModel(
     private val audioPlayer: AudioPlayer,
     private val repository: MusicRepository,
     private val settingsHolder: SettingsHolder,
+    private val history: PlayHistory,
 ) : MviStore<PlayerState, PlayerEvent, PlayerEffect>(PlayerState()) {
 
     private var hasAutoAdvanced = false
@@ -135,6 +138,19 @@ class PlayerViewModel(
                 }
         }
         launch {
+            // Each server has its own history
+            settingsHolder.settings.map { it.serverKey }.distinctUntilChanged().collect { history.reload() }
+        }
+        launch {
+            history.songs.collect { setState { copy(recentlyPlayed = it) } }
+        }
+        launch {
+            state
+                .map { it.playback.currentSong }
+                .distinctUntilChanged { old, new -> old?.id == new?.id }
+                .collect { song -> if (song != null) history.add(song) }
+        }
+        launch {
             settingsHolder.settings.collectLatest { settings ->
                 setState {
                     copy(playback = playback.copy(crossfadeEnabled = settings.playback.crossfadeEnabled))
@@ -163,6 +179,11 @@ class PlayerViewModel(
             is PlayerEvent.ToggleCrossfade -> toggleCrossfade()
             is PlayerEvent.ToggleLyrics -> setState { copy(showLyrics = !showLyrics) }
             is PlayerEvent.ShowLyrics -> setState { copy(showLyrics = true) }
+            is PlayerEvent.AddToQueue -> addToQueue(event.songs)
+            is PlayerEvent.MoveInQueue -> moveInQueue(event.from, event.to)
+            is PlayerEvent.RemoveFromQueue -> removeFromQueue(event.index)
+            is PlayerEvent.PlayQueueIndex -> playQueueIndex(event.index)
+            is PlayerEvent.PlayNow -> playNow(event.song)
             is PlayerEvent.SeekTo -> {
                 audioPlayer.seekTo(event.positionMs)
                 setState { copy(playback = playback.copy(positionMs = event.positionMs)) }
@@ -207,22 +228,12 @@ class PlayerViewModel(
             }
             nextIndex < state.queue.size -> {
                 setState {
-                    copy(
-                        playback = playback.copy(
-                            currentIndex = nextIndex,
-                            currentSong = playback.queue[nextIndex],
-                        )
-                    )
+                    copy(playback = playback.movedTo(nextIndex))
                 }
             }
             state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> {
                 setState {
-                    copy(
-                        playback = playback.copy(
-                            currentIndex = 0,
-                            currentSong = playback.queue[0],
-                        )
-                    )
+                    copy(playback = playback.movedTo(0))
                 }
             }
         }
@@ -233,8 +244,9 @@ class PlayerViewModel(
         val queue: List<Song>
         val index: Int
 
+        // A "Shuffle" button shuffles everything; a song clicked while shuffle is on gets played first
+        val clickedSong = if (shuffle == true) null else songs.getOrNull(startIndex)
         if (targetShuffle && songs.isNotEmpty()) {
-            val clickedSong = songs.getOrNull(startIndex)
             if (clickedSong != null) {
                 val otherSongs = songs.toMutableList()
                 otherSongs.removeAt(startIndex)
@@ -258,12 +270,120 @@ class PlayerViewModel(
                     queue = queue,
                     currentIndex = index,
                     currentSong = queue.getOrNull(index),
+                    queuedCount = 0,
                     shuffle = targetShuffle,
                     status = PlaybackStatus.Buffering,
                 )
             )
         }
         playCurrent()
+    }
+
+    /** Current song at [index]; skipping forward past queued songs counts them as played. */
+    private fun PlaybackState.movedTo(index: Int) = copy(
+        currentIndex = index,
+        currentSong = queue[index],
+        queuedCount = if (index > currentIndex) (queuedCount - (index - currentIndex)).coerceAtLeast(0) else 0,
+    )
+
+    /** Plays [songs] after the current song and the songs queued before them; starts playing if nothing is. */
+    private fun addToQueue(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        val playback = currentState.playback
+        if (playback.currentSong == null) {
+            playSongs(songs, 0, null)
+            return
+        }
+        val insertAt = (playback.currentIndex + 1 + playback.queuedCount).coerceAtMost(playback.queue.size)
+        val queue = playback.queue.take(insertAt) + songs + playback.queue.drop(insertAt)
+        setState { copy(playback = playback.copy(queue = queue, queuedCount = playback.queuedCount + songs.size)) }
+        onUpcomingChanged()
+    }
+
+    private fun moveInQueue(from: Int, to: Int) {
+        val playback = currentState.playback
+        if (from !in playback.queue.indices || to !in playback.queue.indices || from == to) return
+        val queue = playback.queue.toMutableList().apply { add(to, removeAt(from)) }
+        val current = playback.currentIndex
+        val currentIndex = when {
+            from == current -> to
+            from < current && to >= current -> current - 1
+            from > current && to <= current -> current + 1
+            else -> current
+        }
+        val queuedCount = if (from > current && to > current) {
+            // The queued songs follow the current one; a song moved into or out of them joins or leaves them
+            val fromQueued = from <= current + playback.queuedCount
+            val remaining = playback.queuedCount - if (fromQueued) 1 else 0
+            val toQueued = to <= current + remaining + if (fromQueued) 1 else 0
+            remaining + if (toQueued) 1 else 0
+        } else {
+            0
+        }
+        setState {
+            copy(playback = playback.copy(queue = queue, currentIndex = currentIndex, queuedCount = queuedCount))
+        }
+        onUpcomingChanged()
+    }
+
+    private fun removeFromQueue(index: Int) {
+        val playback = currentState.playback
+        // The current song is skipped rather than removed
+        if (index !in playback.queue.indices || index == playback.currentIndex) return
+        val current = playback.currentIndex
+        setState {
+            copy(
+                playback = playback.copy(
+                    queue = playback.queue.filterIndexed { i, _ -> i != index },
+                    currentIndex = if (index < current) current - 1 else current,
+                    queuedCount = if (index > current && index <= current + playback.queuedCount) {
+                        playback.queuedCount - 1
+                    } else {
+                        playback.queuedCount
+                    },
+                )
+            )
+        }
+        onUpcomingChanged()
+    }
+
+    private fun playQueueIndex(index: Int) {
+        if (index !in currentState.playback.queue.indices) return
+        hasAutoAdvanced = false
+        hasPreparedNext = false
+        hasCrossfadeStarted = false
+        setState { copy(playback = playback.movedTo(index)) }
+        playCurrent()
+    }
+
+    /** Plays [song] right away, keeping the rest of the queue. */
+    private fun playNow(song: Song) {
+        val playback = currentState.playback
+        if (playback.currentSong == null) {
+            playSongs(listOf(song), 0, null)
+            return
+        }
+        val index = playback.currentIndex + 1
+        hasAutoAdvanced = false
+        hasPreparedNext = false
+        hasCrossfadeStarted = false
+        setState {
+            copy(
+                playback = playback.copy(
+                    queue = playback.queue.take(index) + song + playback.queue.drop(index),
+                    currentIndex = index,
+                    currentSong = song,
+                )
+            )
+        }
+        playCurrent()
+    }
+
+    /** The song after the current one may be a different one now; then the pre-buffered one is replaced. */
+    private fun onUpcomingChanged() {
+        if (!hasPreparedNext || hasCrossfadeStarted) return
+        val url = getNextSong()?.let { streamUrl(it) } ?: return
+        crossfadePlayer?.prepareNext(url)
     }
 
     private fun playCurrent() {
@@ -307,24 +427,14 @@ class PlayerViewModel(
             nextIndex < state.queue.size -> {
                 hasAutoAdvanced = false
                 setState {
-                    copy(
-                        playback = playback.copy(
-                            currentIndex = nextIndex,
-                            currentSong = playback.queue[nextIndex],
-                        )
-                    )
+                    copy(playback = playback.movedTo(nextIndex))
                 }
                 playCurrent()
             }
             state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> {
                 hasAutoAdvanced = false
                 setState {
-                    copy(
-                        playback = playback.copy(
-                            currentIndex = 0,
-                            currentSong = playback.queue[0],
-                        )
-                    )
+                    copy(playback = playback.movedTo(0))
                 }
                 playCurrent()
             }
@@ -336,6 +446,7 @@ class PlayerViewModel(
                             status = PlaybackStatus.Idle,
                             currentSong = null,
                             currentIndex = -1,
+                            queuedCount = 0,
                         )
                     )
                 }
@@ -355,12 +466,7 @@ class PlayerViewModel(
             hasPreparedNext = false
             hasCrossfadeStarted = false
             setState {
-                copy(
-                    playback = playback.copy(
-                        currentIndex = prevIndex,
-                        currentSong = playback.queue[prevIndex],
-                    )
-                )
+                copy(playback = playback.movedTo(prevIndex))
             }
             playCurrent()
         }

@@ -33,6 +33,10 @@ data class AppSettings(
 ) {
     val hasSavedConnection: Boolean
         get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+
+    /** Identifies the saved server for the data stored on the device. */
+    val serverKey: String
+        get() = "$serverType|$serverUrl|$username"
 }
 
 class SettingsHolder {

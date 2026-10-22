@@ -95,6 +95,8 @@ data class PlaybackState(
     val currentSong: Song? = null,
     val queue: List<Song> = emptyList(),
     val currentIndex: Int = -1,
+    /** How many songs after the current one were added with "Add to queue"; more get added after them. */
+    val queuedCount: Int = 0,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val shuffle: Boolean = false,

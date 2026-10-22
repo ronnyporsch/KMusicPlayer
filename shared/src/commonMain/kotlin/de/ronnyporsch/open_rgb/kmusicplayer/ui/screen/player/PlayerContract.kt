@@ -12,6 +12,8 @@ data class PlayerState(
     val lyrics: LyricsState = LyricsState.Loading,
     /** Codec and bitrate of the current song, once known. */
     val audioFormat: AudioStreamInfo? = null,
+    /** Most recent first, including the current song. */
+    val recentlyPlayed: List<Song> = emptyList(),
 )
 
 sealed interface LyricsState {
@@ -22,6 +24,10 @@ sealed interface LyricsState {
 }
 
 sealed class PlayerEvent {
+    /**
+     * Plays [songs] from [startIndex]. [shuffle] true shuffles all of them (ignoring [startIndex]), null keeps the
+     * shuffle mode and, if it's on, plays the song at [startIndex] first.
+     */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlayerEvent()
     data object PlayPause : PlayerEvent()
     data object Play : PlayerEvent()
@@ -33,6 +39,15 @@ sealed class PlayerEvent {
     data object ToggleCrossfade : PlayerEvent()
     data object ToggleLyrics : PlayerEvent()
     data object ShowLyrics : PlayerEvent()
+    /** Plays [songs] after the current song and the ones queued before. */
+    data class AddToQueue(val songs: List<Song>) : PlayerEvent()
+    /** Moves the song at queue index [from] to [to]. */
+    data class MoveInQueue(val from: Int, val to: Int) : PlayerEvent()
+    data class RemoveFromQueue(val index: Int) : PlayerEvent()
+    /** Jumps to the song at this queue index. */
+    data class PlayQueueIndex(val index: Int) : PlayerEvent()
+    /** Plays [song] now without replacing the queue, e.g. from the recently played songs. */
+    data class PlayNow(val song: Song) : PlayerEvent()
     data class SeekTo(val positionMs: Long) : PlayerEvent()
 }
 

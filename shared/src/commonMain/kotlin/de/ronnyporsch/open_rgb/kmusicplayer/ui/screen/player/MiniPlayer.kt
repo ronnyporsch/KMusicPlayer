@@ -41,6 +41,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.QueueTab
 
 @Composable
 fun MiniPlayer(
@@ -50,6 +51,9 @@ fun MiniPlayer(
     onClick: () -> Unit,
     /** Opens the player with the lyrics shown. */
     onLyricsClick: () -> Unit,
+    /** Opens or closes the queue or the recently played songs; desktop only. */
+    onQueueClick: (QueueTab) -> Unit = {},
+    openQueueTab: QueueTab? = null,
 ) {
     val state by viewModel.state.collectAsState()
     val playback = state.playback
@@ -251,8 +255,16 @@ fun MiniPlayer(
                 }
             }
 
-            // Balances the song info so the controls stay centered
-            if (!isMobile) Spacer(Modifier.weight(1f))
+            // Same width as the song info so the controls stay centered
+            if (!isMobile) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    QueueButtons(openQueueTab, onQueueClick, Modifier.size(32.dp))
+                }
+            }
         }
     }
 }
