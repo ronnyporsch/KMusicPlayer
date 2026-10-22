@@ -21,7 +21,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ExpandableText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
@@ -61,7 +63,7 @@ fun ArtistAlbumsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
-                        val currentIndex = state.songs.indexOfFirst { it.id == state.selectedSongId }
+                        val currentIndex = state.songs.indexOfFirst { it.id in state.selectedSongIds }
                         when (event.key) {
                             Key.DirectionDown -> {
                                 if (currentIndex < state.songs.size - 1) {
@@ -178,8 +180,10 @@ fun ArtistAlbumsScreen(
                             index = index,
                             onSongClick = { viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index)) },
                             onSongDoubleClick = { viewModel.onEvent(ArtistAlbumsEvent.SongDoubleClicked(song, index)) },
+                            onSongCtrlClick = { viewModel.onEvent(ArtistAlbumsEvent.SongSelectionToggled(song)) },
+                            contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
                             onArtistClick = { /* Already in artist view */ },
-                            isSelected = state.selectedSongId == song.id,
+                            isSelected = song.id in state.selectedSongIds,
                             isPlaying = currentSongId == song.id,
                             showAlbum = true,
                             showArtist = false
@@ -219,7 +223,7 @@ private fun ArtistHeader(
 
         if (!biography.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
-            Text(
+            ExpandableText(
                 text = biography,
                 style = MaterialTheme.typography.bodyMedium,
                 color = SpotifyLightGray,

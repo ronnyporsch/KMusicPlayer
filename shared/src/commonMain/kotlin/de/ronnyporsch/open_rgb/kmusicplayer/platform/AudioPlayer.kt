@@ -7,6 +7,8 @@ data class AudioPlayerState(
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val isBuffering: Boolean = false,
+    /** Why the last [AudioPlayer.play] failed, cleared by the next one. */
+    val error: String? = null,
 )
 
 interface AudioPlayer {

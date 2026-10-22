@@ -7,7 +7,10 @@ import androidx.compose.ui.window.rememberWindowState
 
 fun main() = application {
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            AppSession.get().release()
+            exitApplication()
+        },
         title = "KMusicPlayer",
         state = rememberWindowState(width = 1024.dp, height = 768.dp),
     ) {

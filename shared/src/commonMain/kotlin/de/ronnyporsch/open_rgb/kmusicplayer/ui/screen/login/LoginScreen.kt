@@ -15,6 +15,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ServerTypeSelector
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.UntrustedCertificateSwitch
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.urlPlaceholder
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 
 @Composable
@@ -47,18 +50,23 @@ fun LoginScreen(viewModel: LoginViewModel) {
             )
 
             Text(
-                text = "Connect to your Navidrome server",
+                text = "Connect to your Navidrome or Jellyfin server",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            ServerTypeSelector(
+                selected = state.serverType,
+                onSelected = { viewModel.onEvent(LoginEvent.ServerTypeChanged(it)) },
+            )
+
             OutlinedTextField(
                 value = state.serverUrl,
                 onValueChange = { viewModel.onEvent(LoginEvent.ServerUrlChanged(it)) },
                 label = { Text("Server URL") },
-                placeholder = { Text("https://navidrome.example.com") },
+                placeholder = { Text(state.serverType.urlPlaceholder) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -97,6 +105,11 @@ fun LoginScreen(viewModel: LoginViewModel) {
                     focusedLabelColor = SpotifyGreen,
                 ),
                 shape = RoundedCornerShape(0.dp),
+            )
+
+            UntrustedCertificateSwitch(
+                checked = state.allowUntrustedCertificate,
+                onCheckedChange = { viewModel.onEvent(LoginEvent.AllowUntrustedCertificateToggled(it)) },
             )
 
             if (state.error != null) {

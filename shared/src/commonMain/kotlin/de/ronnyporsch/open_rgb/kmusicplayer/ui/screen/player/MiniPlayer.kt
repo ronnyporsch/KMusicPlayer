@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.HoverLinkText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
@@ -36,6 +37,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
 fun MiniPlayer(
     viewModel: PlayerViewModel,
     onArtistClick: (artistName: String) -> Unit,
+    onAlbumClick: (albumId: String) -> Unit,
     onClick: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
@@ -95,11 +97,10 @@ fun MiniPlayer(
                 Spacer(Modifier.width(12.dp))
 
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
+                    HoverLinkText(
                         text = song.title,
+                        onClick = song.albumId.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
                         style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(2.dp))
                     ClickableArtistText(

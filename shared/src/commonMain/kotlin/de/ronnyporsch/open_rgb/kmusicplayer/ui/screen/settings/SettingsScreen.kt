@@ -16,7 +16,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.YT_DLP_COOKIE_BROWSERS
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ServerTypeSelector
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.UntrustedCertificateSwitch
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.urlPlaceholder
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
@@ -61,11 +63,16 @@ fun SettingsScreen(
             // Server Section
             SectionHeader("Server Connection")
 
+            ServerTypeSelector(
+                selected = state.serverType,
+                onSelected = { viewModel.onEvent(SettingsEvent.ServerTypeChanged(it)) },
+            )
+
             OutlinedTextField(
                 value = state.serverUrl,
                 onValueChange = { viewModel.onEvent(SettingsEvent.ServerUrlChanged(it)) },
                 label = { Text("Server URL") },
-                placeholder = { Text("https://navidrome.example.com") },
+                placeholder = { Text(state.serverType.urlPlaceholder) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = settingsTextFieldColors(),
@@ -92,6 +99,11 @@ fun SettingsScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = settingsTextFieldColors(),
                 shape = RoundedCornerShape(0.dp),
+            )
+
+            UntrustedCertificateSwitch(
+                checked = state.allowUntrustedCertificate,
+                onCheckedChange = { viewModel.onEvent(SettingsEvent.AllowUntrustedCertificateToggled(it)) },
             )
 
             if (state.error != null) {
@@ -182,67 +194,15 @@ fun SettingsScreen(
                 }
             }
 
-            if (state.youTubeAvailable) {
+            state.serverYouTubeInfo?.let { info ->
                 Spacer(Modifier.height(16.dp))
 
                 SectionHeader("YouTube Music")
 
-                OutlinedTextField(
-                    value = state.youTubeDownloadDir,
-                    onValueChange = { viewModel.onEvent(SettingsEvent.YouTubeDownloadDirChanged(it)) },
-                    label = { Text("Download folder") },
-                    placeholder = { Text("/srv/music") },
-                    supportingText = {
-                        Text("The server's music folder (local or mounted). Downloads are saved in their original format as Artist/Album/Title.opus (or .m4a)")
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = settingsTextFieldColors(),
-                    shape = RoundedCornerShape(0.dp),
-                )
-
-                CookiesBrowserDropdown(
-                    selected = state.youTubeCookiesBrowser,
-                    onSelected = { viewModel.onEvent(SettingsEvent.YouTubeCookiesBrowserChanged(it)) },
-                )
+                Text(info, style = MaterialTheme.typography.bodyMedium, color = SpotifyLightGray)
             }
 
             Spacer(Modifier.height(100.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CookiesBrowserDropdown(selected: String, onSelected: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    fun label(browser: String) = if (browser.isBlank()) "None" else browser.replaceFirstChar { it.uppercase() }
-
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = label(selected),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Use cookies from browser") },
-            supportingText = {
-                Text("Lets yt-dlp use your YouTube login from this browser, e.g. for Premium audio quality and to avoid bot checks")
-            },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-            singleLine = true,
-            colors = settingsTextFieldColors(),
-            shape = RoundedCornerShape(0.dp),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            (listOf("") + YT_DLP_COOKIE_BROWSERS).forEach { browser ->
-                DropdownMenuItem(
-                    text = { Text(label(browser)) },
-                    onClick = {
-                        onSelected(browser)
-                        expanded = false
-                    },
-                )
-            }
         }
     }
 }

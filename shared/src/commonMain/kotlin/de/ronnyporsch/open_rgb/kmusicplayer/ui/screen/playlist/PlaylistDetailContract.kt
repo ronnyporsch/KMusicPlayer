@@ -7,12 +7,14 @@ data class PlaylistDetailState(
     val playlist: Playlist? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val selectedSongId: String? = null,
+    val selectedSongIds: Set<String> = emptySet(),
 )
 
 sealed class PlaylistDetailEvent {
     data class SongClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
+    /** Ctrl-click: adds the song to or removes it from the selection. */
+    data class SongSelectionToggled(val song: Song) : PlaylistDetailEvent()
     data object PlayAll : PlaylistDetailEvent()
     data object ShuffleAll : PlaylistDetailEvent()
     data class ArtistClicked(val artistName: String) : PlaylistDetailEvent()

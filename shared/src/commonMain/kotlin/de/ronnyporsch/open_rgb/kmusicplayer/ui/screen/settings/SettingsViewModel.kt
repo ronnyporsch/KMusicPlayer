@@ -1,42 +1,60 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings
 
-import de.ronnyporsch.open_rgb.kmusicplayer.data.api.SubsonicApiService
-import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerConfig
+import androidx.lifecycle.viewModelScope
+import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.PluginInfoDto
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicServerConnection
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
-import de.ronnyporsch.open_rgb.kmusicplayer.util.generateSalt
-import de.ronnyporsch.open_rgb.kmusicplayer.util.md5
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 class SettingsViewModel(
-    private val apiService: SubsonicApiService,
-    private val repository: MusicRepository,
+    private val connection: MusicServerConnection,
     private val settingsHolder: SettingsHolder,
-    youTubeAvailable: Boolean,
 ) : MviStore<SettingsState, SettingsEvent, SettingsEffect>(SettingsState()) {
 
     init {
         val current = settingsHolder.settings.value
         setState {
             copy(
+                serverType = current.serverType,
                 serverUrl = current.serverUrl,
                 username = current.username,
                 password = current.password,
+                allowUntrustedCertificate = current.allowUntrustedCertificate,
                 gaplessEnabled = current.playback.gaplessEnabled,
                 crossfadeEnabled = current.playback.crossfadeEnabled,
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
-                youTubeAvailable = youTubeAvailable,
-                youTubeDownloadDir = current.youTubeDownloadDir,
-                youTubeCookiesBrowser = current.youTubeCookiesBrowser,
             )
+        }
+        viewModelScope.launch {
+            connection.plugin.collect { plugin -> setState { copy(serverYouTubeInfo = plugin?.let(::describe)) } }
+        }
+        // Pick up changes an admin made to the plugin's settings
+        launch { connection.refreshPlugin() }
+    }
+
+    private fun describe(plugin: PluginInfoDto): String = when {
+        !plugin.ytDlpAvailable ->
+            "The KMusicPlayer plugin on your Jellyfin server can't find yt-dlp. It needs yt-dlp installed on the server."
+        !plugin.canDownload ->
+            "Your Jellyfin user may not download YouTube Music tracks. An administrator can allow it in the KMusicPlayer plugin settings."
+        else -> buildString {
+            append("Downloads are handled by the KMusicPlayer plugin on your Jellyfin server")
+            plugin.downloadDirectory?.let { append(" and saved to $it") }
+            append(". Browser cookies and the download folder are configured in the Jellyfin dashboard.")
+            plugin.warning?.let { append("\n\n$it") }
         }
     }
 
     override fun onEvent(event: SettingsEvent) {
         when (event) {
+            is SettingsEvent.ServerTypeChanged -> setState { copy(serverType = event.type, error = null) }
             is SettingsEvent.ServerUrlChanged -> setState { copy(serverUrl = event.url, error = null) }
             is SettingsEvent.UsernameChanged -> setState { copy(username = event.username, error = null) }
             is SettingsEvent.PasswordChanged -> setState { copy(password = event.password, error = null) }
+            is SettingsEvent.AllowUntrustedCertificateToggled ->
+                setState { copy(allowUntrustedCertificate = event.allow, error = null) }
             is SettingsEvent.GaplessToggled -> {
                 setState { copy(gaplessEnabled = event.enabled) }
                 updatePlaybackSettings()
@@ -48,14 +66,6 @@ class SettingsViewModel(
             is SettingsEvent.CrossfadeDurationChanged -> {
                 setState { copy(crossfadeDurationSeconds = event.seconds) }
                 updatePlaybackSettings()
-            }
-            is SettingsEvent.YouTubeDownloadDirChanged -> {
-                setState { copy(youTubeDownloadDir = event.dir) }
-                settingsHolder.update { copy(youTubeDownloadDir = event.dir.trim()) }
-            }
-            is SettingsEvent.YouTubeCookiesBrowserChanged -> {
-                setState { copy(youTubeCookiesBrowser = event.browser) }
-                settingsHolder.update { copy(youTubeCookiesBrowser = event.browser) }
             }
             is SettingsEvent.Reconnect -> reconnect()
         }
@@ -85,30 +95,17 @@ class SettingsViewModel(
 
         launch {
             try {
-                val salt = generateSalt()
-                val token = md5(state.password + salt)
-                val config = ServerConfig(
-                    serverUrl = state.serverUrl.trimEnd('/'),
-                    username = state.username,
-                    token = token,
-                    salt = salt,
+                connection.connect(
+                    state.serverType,
+                    state.serverUrl,
+                    state.username,
+                    state.password,
+                    state.allowUntrustedCertificate,
                 )
-                apiService.configure(config)
-
-                val success = repository.ping()
-                if (success) {
-                    settingsHolder.update {
-                        copy(
-                            serverUrl = state.serverUrl.trimEnd('/'),
-                            username = state.username,
-                            password = state.password,
-                        )
-                    }
-                    setState { copy(isReconnecting = false, reconnectSuccess = true) }
-                    emitEffect(SettingsEffect.ShowMessage("Connected successfully"))
-                } else {
-                    setState { copy(isReconnecting = false, error = "Connection failed") }
-                }
+                setState { copy(isReconnecting = false, reconnectSuccess = true) }
+                emitEffect(SettingsEffect.ShowMessage("Connected successfully"))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 setState { copy(isReconnecting = false, error = e.message ?: "Connection error") }
             }

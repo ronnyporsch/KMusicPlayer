@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.offline.PlaylistDownloadStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
@@ -31,12 +32,26 @@ data class LibraryState(
     val albumsLoading: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val selectedSongId: String? = null,
+    val selectedSongIds: Set<String> = emptySet(),
+    /** The server isn't reachable; only the playlists stored on the device are shown. */
+    val isOffline: Boolean = false,
+    /** Whether playlists can be downloaded on this platform. */
+    val canDownloadPlaylists: Boolean = false,
+    /** Downloaded playlists, by id. */
+    val playlistDownloads: Map<String, PlaylistDownloadStatus> = emptyMap(),
 )
 
 sealed class LibraryEvent {
     data class SidebarTabSelected(val tab: LibrarySidebarTab) : LibraryEvent()
     data object Refresh : LibraryEvent()
+    /** Connecting to the server failed; show what is stored on the device meanwhile. */
+    data object ConnectionFailed : LibraryEvent()
+    data class DownloadPlaylist(val playlist: Playlist) : LibraryEvent()
+    data class RemovePlaylistDownload(val playlist: Playlist) : LibraryEvent()
+    /** Mobile: open the item on its own screen instead of the detail pane. */
+    data class OpenArtistScreen(val artist: Artist) : LibraryEvent()
+    data class OpenAlbumScreen(val album: Album) : LibraryEvent()
+    data class OpenPlaylistScreen(val playlist: Playlist) : LibraryEvent()
     data class ArtistClicked(val artist: Artist) : LibraryEvent()
     data class ArtistDoubleClicked(val artist: Artist) : LibraryEvent()
     data object PlayAllArtistSongs : LibraryEvent()
@@ -57,6 +72,8 @@ sealed class LibraryEvent {
     data object ShuffleAllPlaylistSongs : LibraryEvent()
     data class SongClicked(val song: Song, val index: Int) : LibraryEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : LibraryEvent()
+    /** Ctrl-click: adds the song to or removes it from the selection. */
+    data class SongSelectionToggled(val song: Song) : LibraryEvent()
     data class SongArtistClicked(val artistName: String) : LibraryEvent()
     data class SongAlbumClicked(val albumId: String) : LibraryEvent()
 }

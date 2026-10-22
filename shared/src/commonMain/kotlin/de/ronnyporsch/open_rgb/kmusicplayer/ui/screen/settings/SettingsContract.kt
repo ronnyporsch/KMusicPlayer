@@ -1,30 +1,32 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings
 
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerType
+
 data class SettingsState(
+    val serverType: ServerType = ServerType.Subsonic,
     val serverUrl: String = "",
     val username: String = "",
     val password: String = "",
+    val allowUntrustedCertificate: Boolean = false,
     val gaplessEnabled: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,
-    val youTubeAvailable: Boolean = false,
-    val youTubeDownloadDir: String = "",
-    val youTubeCookiesBrowser: String = "",
+    /** Describes the YouTube Music support of the connected Jellyfin server's KMusicPlayer plugin, if any. */
+    val serverYouTubeInfo: String? = null,
     val isReconnecting: Boolean = false,
     val reconnectSuccess: Boolean = false,
     val error: String? = null,
 )
 
 sealed class SettingsEvent {
+    data class ServerTypeChanged(val type: ServerType) : SettingsEvent()
     data class ServerUrlChanged(val url: String) : SettingsEvent()
     data class UsernameChanged(val username: String) : SettingsEvent()
     data class PasswordChanged(val password: String) : SettingsEvent()
+    data class AllowUntrustedCertificateToggled(val allow: Boolean) : SettingsEvent()
     data class GaplessToggled(val enabled: Boolean) : SettingsEvent()
     data class CrossfadeToggled(val enabled: Boolean) : SettingsEvent()
     data class CrossfadeDurationChanged(val seconds: Int) : SettingsEvent()
-    data class YouTubeDownloadDirChanged(val dir: String) : SettingsEvent()
-    /** Blank disables browser cookies. */
-    data class YouTubeCookiesBrowserChanged(val browser: String) : SettingsEvent()
     data object Reconnect : SettingsEvent()
 }
 

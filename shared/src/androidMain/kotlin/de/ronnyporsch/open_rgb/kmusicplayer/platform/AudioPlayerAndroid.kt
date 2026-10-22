@@ -1,8 +1,12 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.platform
 
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,24 +18,40 @@ class AudioPlayerAndroid : AudioPlayer {
     override val state: StateFlow<AudioPlayerState> = _state.asStateFlow()
 
     private val player: ExoPlayer by lazy {
-        ExoPlayer.Builder(AppContextHolder.context).build().also { exo ->
-            exo.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    updateState()
-                }
+        val context = AppContextHolder.context
+        // Streams over OkHttp, so a self-signed server certificate can be accepted
+        val dataSourceFactory = DefaultDataSource.Factory(context, OkHttpDataSource.Factory(sharedOkHttpClient))
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build().also { exo ->
+                exo.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        updateState()
+                    }
 
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    updateState()
-                }
-            })
-        }
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        updateState()
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        positionJob?.cancel()
+                        // The cause carries the useful detail, e.g. "Cleartext HTTP traffic to ... not permitted"
+                        val detail = generateSequence<Throwable>(error) { it.cause }.last().message
+                        _state.value = _state.value.copy(
+                            isPlaying = false,
+                            isBuffering = false,
+                            error = detail ?: error.errorCodeName,
+                        )
+                    }
+                })
+            }
     }
 
     private var positionJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private fun updateState() {
-        _state.value = AudioPlayerState(
+        _state.value = _state.value.copy(
             isPlaying = player.isPlaying,
             positionMs = player.currentPosition,
             durationMs = player.duration.coerceAtLeast(0),
@@ -50,6 +70,7 @@ class AudioPlayerAndroid : AudioPlayer {
     }
 
     override fun play(url: String) {
+        _state.value = _state.value.copy(error = null)
         player.setMediaItem(MediaItem.fromUri(url))
         player.prepare()
         player.play()

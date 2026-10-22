@@ -1,7 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.data.repository
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.api.*
-import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeMusicApi
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -31,8 +30,8 @@ interface MusicRepository {
     suspend fun getAlbum(albumId: String): Result<Album>
     suspend fun getPlaylists(): Result<List<Playlist>>
     suspend fun getPlaylist(playlistId: String): Result<Playlist>
-    suspend fun createPlaylist(name: String, songId: String? = null): Result<Playlist>
-    suspend fun addSongToPlaylist(playlistId: String, songId: String): Result<Unit>
+    suspend fun createPlaylist(name: String, songIds: List<String> = emptyList()): Result<Playlist>
+    suspend fun addSongsToPlaylist(playlistId: String, songIds: List<String>): Result<Unit>
     suspend fun removeSongFromPlaylist(playlistId: String, songIndex: Int): Result<Unit>
     suspend fun findArtistByName(name: String): Result<Artist?>
     suspend fun findSongsByArtistName(name: String): Result<List<Song>>
@@ -45,6 +44,9 @@ interface MusicRepository {
     suspend fun search(query: String): Result<SearchResults>
     suspend fun startScan(): Result<Boolean>
     fun getStreamUrl(songId: String): String
+
+    /** URL of the song's original file, e.g. for downloading it. */
+    fun getDownloadUrl(songId: String): String
     fun getCoverArtUrl(coverArtId: String, size: Int = 300): String
 }
 
@@ -120,8 +122,8 @@ class MusicRepositoryImpl(
         body.playlist?.toDomain() ?: throw IllegalStateException("Playlist not found")
     }
 
-    override suspend fun createPlaylist(name: String, songId: String?): Result<Playlist> = runCatching {
-        val response = api.createPlaylist(name, songId)
+    override suspend fun createPlaylist(name: String, songIds: List<String>): Result<Playlist> = runCatching {
+        val response = api.createPlaylist(name, songIds)
         val body = response.subsonicResponse
         if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error creating playlist")
         // Note: createPlaylist might not return the playlist object in some Subsonic versions, 
@@ -130,8 +132,8 @@ class MusicRepositoryImpl(
         body.playlist?.toDomain() ?: throw IllegalStateException("Playlist not returned after creation")
     }
 
-    override suspend fun addSongToPlaylist(playlistId: String, songId: String): Result<Unit> = runCatching {
-        val response = api.updatePlaylist(playlistId, songIdsToAdd = listOf(songId))
+    override suspend fun addSongsToPlaylist(playlistId: String, songIds: List<String>): Result<Unit> = runCatching {
+        val response = api.updatePlaylist(playlistId, songIdsToAdd = songIds)
         val body = response.subsonicResponse
         if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error adding song to playlist")
     }
@@ -190,18 +192,9 @@ class MusicRepositoryImpl(
 
     override suspend fun startScan(): Result<Boolean> = runCatching { api.startScan() }
 
-    override fun getStreamUrl(songId: String): String =
-        if (songId.startsWith(YOUTUBE_SONG_ID_PREFIX)) {
-            YOUTUBE_STREAM_SCHEME + songId.removePrefix(YOUTUBE_SONG_ID_PREFIX)
-        } else {
-            api.getStreamUrl(songId)
-        }
+    override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId)
 
-    // YouTube Music songs carry their thumbnail URL as cover art id
-    override fun getCoverArtUrl(coverArtId: String, size: Int): String =
-        if (coverArtId.startsWith("https://")) {
-            YouTubeMusicApi.resizeThumbnail(coverArtId, size)
-        } else {
-            api.getCoverArtUrl(coverArtId, size)
-        }
+    override fun getDownloadUrl(songId: String): String = api.getDownloadUrl(songId)
+
+    override fun getCoverArtUrl(coverArtId: String, size: Int): String = api.getCoverArtUrl(coverArtId, size)
 }

@@ -21,10 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.open_rgb.kmusicplayer.data.offline.PlaylistDownloadStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
@@ -87,6 +89,15 @@ fun LibraryScreen(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
         )
+
+        if (state.isOffline) {
+            Text(
+                text = "Can't reach the server. Showing the playlists stored on this device.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = SpotifyLightGray,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
 
         Spacer(Modifier.height(16.dp))
 
@@ -164,6 +175,22 @@ private fun LibrarySplitView(
     draggingSong: Song?,
     onDropSong: (Playlist, Song) -> Unit,
 ) {
+    // On mobile there is no room for a detail pane: the sidebar fills the screen and items open their own screens
+    if (remember { getPlatform().isMobile }) {
+        LibrarySidebar(
+            state = state,
+            viewModel = viewModel,
+            onCreatePlaylist = onCreatePlaylist,
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+            draggingSong = draggingSong,
+            onDropSong = onDropSong,
+            openItemScreens = true,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
+    }
+
     Row(Modifier.fillMaxSize()) {
         LibrarySidebar(
             state = state,
@@ -202,6 +229,7 @@ private fun LibrarySidebar(
     onDragEnd: () -> Unit,
     draggingSong: Song?,
     onDropSong: (Playlist, Song) -> Unit,
+    openItemScreens: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -235,29 +263,44 @@ private fun LibrarySidebar(
                 LibrarySidebarTab.Artists -> ArtistSidebar(
                     artists = state.artists,
                     selectedArtistId = state.selectedArtistId,
-                    onArtistClick = { viewModel.onEvent(LibraryEvent.ArtistClicked(it)) },
-                    onArtistDoubleClick = { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) },
+                    onArtistClick = {
+                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
+                    },
+                    onArtistDoubleClick = if (openItemScreens) null else {
+                        { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) }
+                    },
                     state = viewModel.artistSidebarState,
                     modifier = Modifier.fillMaxSize(),
                 )
                 LibrarySidebarTab.Albums -> AlbumSidebar(
                     albums = state.albums,
                     selectedAlbumId = state.selectedAlbumId,
-                    onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumClicked(it)) },
-                    onAlbumDoubleClick = { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) },
+                    onAlbumClick = {
+                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenAlbumScreen(it) else LibraryEvent.AlbumClicked(it))
+                    },
+                    onAlbumDoubleClick = if (openItemScreens) null else {
+                        { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) }
+                    },
                     state = viewModel.albumSidebarState,
                     modifier = Modifier.fillMaxSize(),
                 )
                 LibrarySidebarTab.Playlists -> PlaylistSidebar(
                     playlists = state.playlists,
                     selectedPlaylistId = state.selectedPlaylistId,
-                    onPlaylistClick = { viewModel.onEvent(LibraryEvent.PlaylistClicked(it)) },
-                    onPlaylistDoubleClick = { viewModel.onEvent(LibraryEvent.PlaylistDoubleClicked(it)) },
+                    onPlaylistClick = {
+                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenPlaylistScreen(it) else LibraryEvent.PlaylistClicked(it))
+                    },
+                    onPlaylistDoubleClick = if (openItemScreens) null else {
+                        { viewModel.onEvent(LibraryEvent.PlaylistDoubleClicked(it)) }
+                    },
                     onCreatePlaylist = onCreatePlaylist,
                     draggingSong = draggingSong,
                     onDropSong = onDropSong,
                     state = viewModel.playlistSidebarState,
                     modifier = Modifier.fillMaxSize(),
+                    downloads = if (state.canDownloadPlaylists) state.playlistDownloads else null,
+                    onDownload = { viewModel.onEvent(LibraryEvent.DownloadPlaylist(it)) },
+                    onRemoveDownload = { viewModel.onEvent(LibraryEvent.RemovePlaylistDownload(it)) },
                 )
             }
         }
@@ -283,9 +326,10 @@ private fun LibraryDetailPane(
             songs = state.selectedArtistSongs,
             isSongsLoading = state.selectedArtistSongsLoading,
             onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumOpened(it)) },
+            onSongAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongDoubleClicked(song, index)) },
-            isSelected = { it == state.selectedSongId },
+            isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllArtistSongs) },
             onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllArtistSongs) },
@@ -293,12 +337,14 @@ private fun LibraryDetailPane(
             onDragEnd = onDragEnd,
             state = viewModel.artistDetailState,
             modifier = modifier,
+            onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+            contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
         LibraryDetailView.Albums -> AlbumDetailPane(
             album = state.selectedAlbum,
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
-            isSelected = { it == state.selectedSongId },
+            isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllAlbumSongs) },
@@ -307,10 +353,13 @@ private fun LibraryDetailPane(
             onDragEnd = onDragEnd,
             state = viewModel.albumDetailState,
             modifier = modifier,
+            onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+            contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
         LibraryDetailView.Playlists -> PlaylistDetailPane(
             playlist = state.selectedPlaylist,
             isLoading = state.selectedPlaylistLoading,
+            isOffline = state.isOffline,
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
             onRemoveClick = { song, index ->
@@ -318,7 +367,7 @@ private fun LibraryDetailPane(
                     viewModel.onEvent(LibraryEvent.RemoveSongFromPlaylist(it, index))
                 }
             },
-            isSelected = { it == state.selectedSongId },
+            isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
             onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
@@ -328,6 +377,8 @@ private fun LibraryDetailPane(
             onDragEnd = onDragEnd,
             state = viewModel.playlistDetailState,
             modifier = modifier,
+            onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+            contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
     }
 }
@@ -363,9 +414,10 @@ private fun ArtistSplitView(
             songs = state.selectedArtistSongs,
             isSongsLoading = state.selectedArtistSongsLoading,
             onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumOpened(it)) },
+            onSongAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongDoubleClicked(song, index)) },
-            isSelected = { it == state.selectedSongId },
+            isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllArtistSongs) },
             onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllArtistSongs) },
@@ -405,7 +457,7 @@ private fun AlbumSplitView(
             album = state.selectedAlbum,
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
-            isSelected = { it == state.selectedSongId },
+            isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllAlbumSongs) },
@@ -425,7 +477,7 @@ private fun ArtistSidebar(
     artists: List<Artist>,
     selectedArtistId: String?,
     onArtistClick: (Artist) -> Unit,
-    onArtistDoubleClick: (Artist) -> Unit,
+    onArtistDoubleClick: ((Artist) -> Unit)?,
     state: LazyListState,
     modifier: Modifier = Modifier,
 ) {
@@ -454,7 +506,7 @@ private fun ArtistSidebar(
                                     .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
                                     .combinedClickable(
                                         onClick = { onArtistClick(artist) },
-                                        onDoubleClick = { onArtistDoubleClick(artist) }
+                                        onDoubleClick = onArtistDoubleClick?.let { { it(artist) } }
                                     )
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -513,6 +565,8 @@ private fun ArtistDetailPane(
     songs: List<Song>,
     isSongsLoading: Boolean,
     onAlbumClick: (Album) -> Unit,
+    /** Album link of a song whose album isn't shown in the overview. */
+    onSongAlbumClick: (albumId: String) -> Unit,
     onSongClick: (Song, Int) -> Unit,
     onSongDoubleClick: (Song, Int) -> Unit,
     isSelected: (String) -> Boolean,
@@ -522,6 +576,8 @@ private fun ArtistDetailPane(
     onDragStart: (Song) -> Unit,
     onDragEnd: () -> Unit,
     state: LazyGridState,
+    onSongCtrlClick: (Song) -> Unit = {},
+    contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -661,9 +717,15 @@ private fun ArtistDetailPane(
                             onSongDoubleClick = { onSongDoubleClick(song, index) },
                             onDragStart = onDragStart,
                             onDragEnd = onDragEnd,
+                            onSongCtrlClick = { onSongCtrlClick(song) },
+                            contextMenuSongs = { contextMenuSongs(songs, song) },
                             isSelected = isSelected(song.id),
                             isPlaying = isPlaying(song.id),
                             onArtistClick = { /* Already in artist view */ },
+                            onAlbumClick = { albumId ->
+                                val album = albums.find { it.id == albumId } ?: appearsOnAlbums.find { it.id == albumId }
+                                if (album != null) onAlbumClick(album) else onSongAlbumClick(albumId)
+                            },
                             showAlbum = true,
                             showArtist = false
                         )
@@ -679,7 +741,7 @@ private fun AlbumSidebar(
     albums: List<Album>,
     selectedAlbumId: String?,
     onAlbumClick: (Album) -> Unit,
-    onAlbumDoubleClick: (Album) -> Unit,
+    onAlbumDoubleClick: ((Album) -> Unit)?,
     state: LazyListState,
     modifier: Modifier = Modifier,
 ) {
@@ -708,7 +770,7 @@ private fun AlbumSidebar(
                                     .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
                                     .combinedClickable(
                                         onClick = { onAlbumClick(album) },
-                                        onDoubleClick = { onAlbumDoubleClick(album) }
+                                        onDoubleClick = onAlbumDoubleClick?.let { { it(album) } }
                                     )
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -781,6 +843,8 @@ private fun AlbumDetailPane(
     onDragEnd: () -> Unit,
     state: LazyListState,
     modifier: Modifier = Modifier,
+    onSongCtrlClick: (Song) -> Unit = {},
+    contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
 
@@ -904,6 +968,8 @@ private fun AlbumDetailPane(
                         onSongDoubleClick = { onSongDoubleClick(song, index) },
                         onDragStart = onDragStart,
                         onDragEnd = onDragEnd,
+                        onSongCtrlClick = { onSongCtrlClick(song) },
+                        contextMenuSongs = { contextMenuSongs(album.songs, song) },
                         isSelected = isSelected(song.id),
                         isPlaying = isPlaying(song.id),
                     )
@@ -941,7 +1007,7 @@ private fun ArtistHeader(
 
         if (!biography.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
-            Text(
+            ExpandableText(
                 text = biography,
                 style = MaterialTheme.typography.bodyMedium,
                 color = SpotifyLightGray,
@@ -1015,6 +1081,7 @@ private fun PlaylistSplitView(
         PlaylistDetailPane(
             playlist = state.selectedPlaylist,
             isLoading = state.selectedPlaylistLoading,
+            isOffline = state.isOffline,
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
             onRemoveClick = { song, index -> 
@@ -1022,7 +1089,7 @@ private fun PlaylistSplitView(
                     viewModel.onEvent(LibraryEvent.RemoveSongFromPlaylist(it, index))
                 }
             },
-            isSelected = { it == state.selectedSongId },
+            isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
             onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
@@ -1043,12 +1110,16 @@ private fun PlaylistSidebar(
     playlists: List<Playlist>,
     selectedPlaylistId: String?,
     onPlaylistClick: (Playlist) -> Unit,
-    onPlaylistDoubleClick: (Playlist) -> Unit,
+    onPlaylistDoubleClick: ((Playlist) -> Unit)?,
     onCreatePlaylist: () -> Unit,
     draggingSong: Song?,
     onDropSong: (Playlist, Song) -> Unit,
     state: LazyListState,
     modifier: Modifier = Modifier,
+    /** Null where playlists can't be downloaded. */
+    downloads: Map<String, PlaylistDownloadStatus>? = null,
+    onDownload: (Playlist) -> Unit = {},
+    onRemoveDownload: (Playlist) -> Unit = {},
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     val scope = rememberCoroutineScope()
@@ -1102,8 +1173,8 @@ private fun PlaylistSidebar(
                                                 onPlaylistClick(playlist) 
                                             }
                                         },
-                                        onDoubleClick = { 
-                                            if (draggingSong == null) onPlaylistDoubleClick(playlist) 
+                                        onDoubleClick = onPlaylistDoubleClick?.let {
+                                            { if (draggingSong == null) it(playlist) }
                                         }
                                     )
                                     .padding(10.dp),
@@ -1129,6 +1200,15 @@ private fun PlaylistSidebar(
                                         text = "${playlist.songCount} song${if (playlist.songCount != 1) "s" else ""}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+
+                                if (downloads != null) {
+                                    PlaylistDownloadButton(
+                                        playlistName = playlist.name,
+                                        status = downloads[playlist.id],
+                                        onDownload = { onDownload(playlist) },
+                                        onRemove = { onRemoveDownload(playlist) },
                                     )
                                 }
                             }
@@ -1158,6 +1238,7 @@ private fun PlaylistSidebar(
 private fun PlaylistDetailPane(
     playlist: Playlist?,
     isLoading: Boolean,
+    isOffline: Boolean = false,
     onSongClick: (Song, Int) -> Unit,
     onSongDoubleClick: (Song, Int) -> Unit,
     onRemoveClick: (Song, Int) -> Unit,
@@ -1171,6 +1252,8 @@ private fun PlaylistDetailPane(
     onDragEnd: () -> Unit,
     state: LazyListState,
     modifier: Modifier = Modifier,
+    onSongCtrlClick: (Song) -> Unit = {},
+    contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
 
@@ -1189,7 +1272,7 @@ private fun PlaylistDetailPane(
             playlist == null -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "Select a playlist to see its songs",
+                        text = if (isOffline) "This playlist isn't stored on this device" else "Select a playlist to see its songs",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1290,6 +1373,8 @@ private fun PlaylistDetailPane(
                             onRemoveClick = { onRemoveClick(song, index) },
                             onDragStart = onDragStart,
                             onDragEnd = onDragEnd,
+                            onSongCtrlClick = { onSongCtrlClick(song) },
+                            contextMenuSongs = { contextMenuSongs(playlist.songs, song) },
                             isSelected = isSelected(song.id),
                             isPlaying = isPlaying(song.id),
                             onArtistClick = onArtistClick,

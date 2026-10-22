@@ -3,6 +3,9 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
+import de.ronnyporsch.open_rgb.kmusicplayer.util.newestAlbumsFirst
+import de.ronnyporsch.open_rgb.kmusicplayer.util.newestFirst
 
 class ArtistAlbumsViewModel(
     private val artistId: String?,
@@ -25,17 +28,19 @@ class ArtistAlbumsViewModel(
 
     override fun onEvent(event: ArtistAlbumsEvent) {
         when (event) {
+            is ArtistAlbumsEvent.SongSelectionToggled ->
+                setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is ArtistAlbumsEvent.AlbumClicked ->
                 emitEffect(ArtistAlbumsEffect.NavigateToAlbum(event.album.id))
             is ArtistAlbumsEvent.SongClicked -> {
                 if (getPlatform().isMobile) {
                     emitEffect(ArtistAlbumsEffect.PlaySongs(state.value.songs, event.index))
                 } else {
-                    setState { copy(selectedSongId = event.song.id) }
+                    setState { copy(selectedSongIds = setOf(event.song.id)) }
                 }
             }
             is ArtistAlbumsEvent.SongDoubleClicked -> {
-                setState { copy(selectedSongId = event.song.id) }
+                setState { copy(selectedSongIds = setOf(event.song.id)) }
                 emitEffect(ArtistAlbumsEffect.PlaySongs(state.value.songs, event.index))
             }
             is ArtistAlbumsEvent.PlayAllSongs -> {
@@ -78,7 +83,7 @@ class ArtistAlbumsViewModel(
         launch {
             repository.getArtistAlbums(id)
                 .onSuccess { albums ->
-                    val dedupedAlbums = albums.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }
+                    val dedupedAlbums = albums.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }.newestFirst()
                     setState { copy(albums = dedupedAlbums, isLoading = false) }
                     loadAppearsOnAlbums(artistName, dedupedAlbums.map { it.id })
                     loadSongs(dedupedAlbums.map { it.id })
@@ -90,7 +95,7 @@ class ArtistAlbumsViewModel(
     private fun loadAppearsOnAlbums(artistName: String, albumIds: List<String>) {
         launch {
             repository.getAppearsOnAlbums(artistName, albumIds)
-                .onSuccess { setState { copy(appearsOnAlbums = it) } }
+                .onSuccess { setState { copy(appearsOnAlbums = it.newestFirst()) } }
         }
     }
 
@@ -98,7 +103,7 @@ class ArtistAlbumsViewModel(
         setState { copy(isSongsLoading = true) }
         launch {
             repository.getSongsForArtist(artistName, albumIds)
-                .onSuccess { songs -> setState { copy(songs = songs, isSongsLoading = false) } }
+                .onSuccess { songs -> setState { copy(songs = songs.newestAlbumsFirst(), isSongsLoading = false) } }
                 .onFailure { setState { copy(isSongsLoading = false) } }
         }
     }
@@ -117,3 +122,4 @@ class ArtistAlbumsViewModel(
         }
     }
 }
+

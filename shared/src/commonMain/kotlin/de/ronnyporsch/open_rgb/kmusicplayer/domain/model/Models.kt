@@ -1,5 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.domain.model
 
+import kotlinx.serialization.Serializable
+
 data class ServerConfig(
     val serverUrl: String,
     val username: String,
@@ -7,6 +9,7 @@ data class ServerConfig(
     val salt: String,
 )
 
+@Serializable
 data class Artist(
     val id: String,
     val name: String,
@@ -32,6 +35,7 @@ data class Album(
     val songs: List<Song> = emptyList(),
 )
 
+@Serializable
 data class Song(
     val id: String,
     val title: String,
@@ -49,6 +53,7 @@ data class Song(
     val bitRate: Int? = null,
 )
 
+@Serializable
 data class Playlist(
     val id: String,
     val name: String,
@@ -91,9 +96,6 @@ fun Long.formatDurationMs(): String {
 
 /** Songs from YouTube Music carry this prefix in [Song.id]; they are not part of the Subsonic library. */
 const val YOUTUBE_SONG_ID_PREFIX = "yt:"
-
-/** Stream URL scheme understood by platform audio players that can resolve YouTube Music tracks. */
-const val YOUTUBE_STREAM_SCHEME = "ytmusic:"
 
 val Song.isYouTube: Boolean
     get() = id.startsWith(YOUTUBE_SONG_ID_PREFIX)

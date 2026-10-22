@@ -15,11 +15,11 @@ sealed class Screen {
     data object Settings : Screen()
 }
 
-class Navigator {
-    private val backStack = mutableListOf<Screen>(Screen.Login)
+class Navigator(initialScreen: Screen = Screen.Login) {
+    private val backStack = mutableListOf(initialScreen)
     private val forwardStack = mutableListOf<Screen>()
 
-    private val _currentScreen = MutableStateFlow<Screen>(Screen.Login)
+    private val _currentScreen = MutableStateFlow(initialScreen)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
     fun push(screen: Screen) {

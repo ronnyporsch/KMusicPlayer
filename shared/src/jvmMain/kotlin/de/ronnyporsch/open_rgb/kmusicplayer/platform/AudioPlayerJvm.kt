@@ -1,13 +1,13 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.platform
 
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.YOUTUBE_STREAM_SCHEME
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.Request
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.net.URI
+import java.io.IOException
 import javax.sound.sampled.*
 
 class AudioPlayerJvm : AudioPlayer {
@@ -21,28 +21,34 @@ class AudioPlayerJvm : AudioPlayer {
     private var pcmData: ByteArray? = null
     private var decodedFormat: AudioFormat? = null
     @Volatile private var isPaused = false
-    @Volatile private var stopRequested = false
+    /** Bumped by [stop]; a playback job whose generation is outdated must not touch playback anymore. */
+    @Volatile private var generation = 0
     @Volatile private var playbackPositionBytes: Long = 0
     @Volatile private var totalDurationMs: Long = 0
     @Volatile private var volumeScale: Float = 1.0f
 
     override fun play(url: String) {
         stop()
-        stopRequested = false
         isPaused = false
+        // The previous job may still be stuck in a blocking download/decode/write that ignores cancellation;
+        // it must notice it's outdated by itself, or it would start playing alongside this one
+        val gen = generation
+        fun stale() = gen != generation
+        fun publish(state: AudioPlayerState) {
+            if (!stale()) _state.value = state
+        }
 
         playbackJob = scope.launch {
             try {
-                _state.value = AudioPlayerState(isBuffering = true)
+                publish(AudioPlayerState(isBuffering = true))
 
                 // Download entire file first — ByteArrayInputStream supports
                 // unlimited mark/reset, which SPI probing (FLAC, MP3) requires
-                val rawBytes = if (url.startsWith(YOUTUBE_STREAM_SCHEME)) {
-                    YtDlp.fetchPlayableAudio(url.removePrefix(YOUTUBE_STREAM_SCHEME)).readBytes()
-                } else {
-                    URI(url).toURL().openStream().use { it.readBytes() }
+                val rawBytes = sharedOkHttpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("HTTP ${response.code} ${response.message}")
+                    checkNotNull(response.body).bytes()
                 }
-                if (stopRequested) return@launch
+                if (stale()) return@launch
                 val audioStream = AudioSystem.getAudioInputStream(ByteArrayInputStream(rawBytes))
                 val baseFormat = audioStream.format
 
@@ -66,36 +72,41 @@ class AudioPlayerJvm : AudioPlayer {
                 var bytesRead: Int
                 while (decodedStream.read(chunk).also { bytesRead = it } != -1) {
                     buffer.write(chunk, 0, bytesRead)
-                    if (stopRequested) return@launch
+                    if (stale()) return@launch
                 }
                 decodedStream.close()
                 audioStream.close()
 
                 val data = buffer.toByteArray()
+                if (stale()) return@launch
                 pcmData = data
                 decodedFormat = targetFormat
 
                 val bytesPerSecond = targetFormat.sampleRate * targetFormat.frameSize
                 totalDurationMs = ((data.size.toDouble() / bytesPerSecond) * 1000).toLong()
 
-                if (stopRequested) return@launch
+                if (stale()) return@launch
 
                 // Open audio line and start streaming
                 val line = getSourceDataLine(targetFormat)
                 line.open(targetFormat)
                 line.start()
+                if (stale()) {
+                    line.close()
+                    return@launch
+                }
                 currentLine = line
 
                 playbackPositionBytes = 0
                 val writeChunk = ByteArray(4096)
 
-                _state.value = AudioPlayerState(
+                publish(AudioPlayerState(
                     isPlaying = true,
                     positionMs = 0,
                     durationMs = totalDurationMs,
-                )
+                ))
 
-                while (playbackPositionBytes < data.size && !stopRequested) {
+                while (playbackPositionBytes < data.size && !stale()) {
                     if (isPaused) {
                         delay(50)
                         continue
@@ -120,38 +131,39 @@ class AudioPlayerJvm : AudioPlayer {
                     }
 
                     val written = line.write(writeChunk, 0, toWrite)
+                    if (stale()) break
                     playbackPositionBytes += written
 
                     val currentMs = ((playbackPositionBytes.toDouble() / bytesPerSecond) * 1000).toLong()
-                    _state.value = AudioPlayerState(
+                    publish(AudioPlayerState(
                         isPlaying = true,
                         positionMs = currentMs,
                         durationMs = totalDurationMs,
-                    )
+                    ))
                 }
 
                 // Wait for line to finish draining
-                if (!stopRequested) {
+                if (!stale()) {
                     line.drain()
                 }
 
                 line.stop()
                 line.close()
-                currentLine = null
+                if (!stale()) currentLine = null
 
-                if (!stopRequested) {
+                if (!stale()) {
                     // Playback finished naturally
-                    _state.value = AudioPlayerState(
+                    publish(AudioPlayerState(
                         isPlaying = false,
                         positionMs = totalDurationMs,
                         durationMs = totalDurationMs,
-                    )
+                    ))
                 }
 
             } catch (e: Exception) {
-                if (!stopRequested) {
+                if (!stale()) {
                     e.printStackTrace()
-                    _state.value = AudioPlayerState()
+                    publish(AudioPlayerState(error = e.message ?: e::class.simpleName))
                 }
             }
         }
@@ -197,7 +209,7 @@ class AudioPlayerJvm : AudioPlayer {
     }
 
     override fun stop() {
-        stopRequested = true
+        generation++
         isPaused = false
         playbackJob?.cancel()
         currentLine?.let {

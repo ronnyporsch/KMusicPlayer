@@ -11,6 +11,7 @@ class JsPlatform : Platform {
         ?: "Unknown"
 
     override val isMobile: Boolean = false
+    override val audioContainers: List<String> = BROWSER_AUDIO_CONTAINERS
 }
 
 actual fun getPlatform(): Platform = JsPlatform()

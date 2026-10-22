@@ -3,7 +3,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.search
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.platform.AudioStreamInfo
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.AudioStreamInfo
 
 sealed class DownloadStatus {
     data object InProgress : DownloadStatus()
@@ -18,8 +18,9 @@ data class SearchState(
     val songs: List<Song> = emptyList(),
     val isLoading: Boolean = false,
     val hasSearched: Boolean = false,
-    val selectedSongId: String? = null,
+    val selectedSongIds: Set<String> = emptySet(),
     val youTubeAvailable: Boolean = false,
+    val youTubeDownloadAvailable: Boolean = false,
     val youTubeSongs: List<Song> = emptyList(),
     val isYouTubeLoading: Boolean = false,
     val youTubeError: String? = null,
@@ -36,6 +37,8 @@ sealed class SearchEvent {
     data class AlbumClicked(val album: Album) : SearchEvent()
     data class SongClicked(val song: Song, val index: Int) : SearchEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
+    /** Ctrl-click: adds the song to or removes it from the selection. */
+    data class SongSelectionToggled(val song: Song) : SearchEvent()
     data class YouTubeSongClicked(val song: Song, val index: Int) : SearchEvent()
     data class YouTubeSongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
     data class DownloadYouTubeSong(val song: Song) : SearchEvent()

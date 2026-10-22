@@ -1,7 +1,9 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.data.api
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.dto.SubsonicError
 import de.ronnyporsch.open_rgb.kmusicplayer.data.dto.SubsonicResponse
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerConfig
+import de.ronnyporsch.open_rgb.kmusicplayer.platform.createHttpClient
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -17,7 +19,7 @@ class SubsonicApiService {
         coerceInputValues = true
     }
 
-    private val client = HttpClient {
+    private val client = createHttpClient {
         install(ContentNegotiation) {
             json(json)
         }
@@ -55,6 +57,15 @@ class SubsonicApiService {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /** Returns the server's error if it rejects the configured credentials. Throws if it can't be reached. */
+    suspend fun checkCredentials(): SubsonicError? {
+        val response: SubsonicResponse = client.get("${baseUrl()}/rest/ping.view") {
+            addAuthParams()
+        }.body()
+        val body = response.subsonicResponse
+        return if (body.status == "ok") null else body.error ?: SubsonicError(message = "Connection failed")
     }
 
     suspend fun getArtists(): SubsonicResponse {
@@ -97,13 +108,11 @@ class SubsonicApiService {
         }.body()
     }
 
-    suspend fun createPlaylist(name: String, songId: String? = null): SubsonicResponse {
+    suspend fun createPlaylist(name: String, songIds: List<String> = emptyList()): SubsonicResponse {
         return client.get("${baseUrl()}/rest/createPlaylist.view") {
             addAuthParams()
             parameter("name", name)
-            if (songId != null) {
-                parameter("songId", songId)
-            }
+            songIds.forEach { parameter("songId", it) }
         }.body()
     }
 
@@ -152,6 +161,9 @@ class SubsonicApiService {
         val cfg = config ?: throw IllegalStateException("Server not configured")
         return "${baseUrl()}/rest/stream.view?id=$songId&u=${cfg.username}&t=${cfg.token}&s=${cfg.salt}&v=1.16.1&c=KMusicPlayer"
     }
+
+    /** The original file, without transcoding. */
+    fun getDownloadUrl(songId: String): String = getStreamUrl(songId) + "&format=raw"
 
     fun getCoverArtUrl(coverArtId: String, size: Int = 300): String {
         val cfg = config ?: throw IllegalStateException("Server not configured")

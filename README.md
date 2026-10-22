@@ -9,6 +9,14 @@ This is a Kotlin Multiplatform project targeting Android, Web, Desktop (JVM).
       Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
       folder is the appropriate location.
 
+### Servers and YouTube Music downloads
+
+KMusicPlayer connects to Navidrome (or any Subsonic server) or to Jellyfin 12.2+ (chosen on the login and settings
+screens). When connected to a Jellyfin server with the [KMusicPlayer plugin](./jellyfin-plugin) installed, YouTube
+Music can be searched, played and downloaded on all platforms: the server searches YouTube Music, streams tracks and
+downloads them with yt-dlp (optionally using a browser's cookies, e.g. Firefox) into its music library. The apps
+never run yt-dlp themselves, so YouTube Music isn't available with Navidrome/Subsonic servers.
+
 ### Running the apps
 
 Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:

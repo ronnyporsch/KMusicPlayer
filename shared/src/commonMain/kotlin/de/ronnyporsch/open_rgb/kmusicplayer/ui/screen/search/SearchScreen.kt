@@ -29,6 +29,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
@@ -64,7 +65,7 @@ fun SearchScreen(
                     if (event.type == KeyEventType.KeyDown) {
                         // Library songs and YouTube Music songs form one navigable list
                         val allSongs = state.songs + state.youTubeSongs
-                        val currentIndex = allSongs.indexOfFirst { it.id == state.selectedSongId }
+                        val currentIndex = allSongs.indexOfFirst { it.id in state.selectedSongIds }
                         val targetIndex = when (event.key) {
                             Key.DirectionDown -> currentIndex + 1
                             Key.DirectionUp -> currentIndex - 1
@@ -118,7 +119,9 @@ fun SearchScreen(
                             onArtistClick = { name -> viewModel.onEvent(SearchEvent.ArtistNameClicked(name)) },
                             onSongClick = { viewModel.onEvent(SearchEvent.SongClicked(song, index)) },
                             onSongDoubleClick = { viewModel.onEvent(SearchEvent.SongDoubleClicked(song, index)) },
-                            isSelected = state.selectedSongId == song.id,
+                            onSongCtrlClick = { viewModel.onEvent(SearchEvent.SongSelectionToggled(song)) },
+                            contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
+                            isSelected = song.id in state.selectedSongIds,
                             isPlaying = currentSongId == song.id,
                             showAlbum = true
                         )
@@ -170,7 +173,7 @@ fun SearchScreen(
                                 onArtistClick = { name -> viewModel.onEvent(SearchEvent.ArtistNameClicked(name)) },
                                 onSongClick = { viewModel.onEvent(SearchEvent.YouTubeSongClicked(song, index)) },
                                 onSongDoubleClick = { viewModel.onEvent(SearchEvent.YouTubeSongDoubleClicked(song, index)) },
-                                isSelected = state.selectedSongId == song.id,
+                                isSelected = song.id in state.selectedSongIds,
                                 isPlaying = currentSongId == song.id,
                                 showAlbum = true,
                                 trailingContent = {
@@ -182,7 +185,9 @@ fun SearchScreen(
                                             modifier = Modifier.padding(end = 4.dp),
                                         )
                                     }
-                                    DownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) }
+                                    if (state.youTubeDownloadAvailable) {
+                                        DownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) }
+                                    }
                                 },
                             )
                             val message = when (download) {

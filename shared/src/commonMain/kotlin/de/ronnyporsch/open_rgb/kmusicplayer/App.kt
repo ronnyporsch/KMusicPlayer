@@ -16,16 +16,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.input.key.*
-import de.ronnyporsch.open_rgb.kmusicplayer.data.api.SubsonicApiService
-import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepositoryImpl
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerConfig
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
-import de.ronnyporsch.open_rgb.kmusicplayer.util.generateSalt
-import de.ronnyporsch.open_rgb.kmusicplayer.util.md5
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
+import coil3.ImageLoader
+import coil3.compose.setSingletonImageLoaderFactory
+import coil3.network.ktor3.KtorNetworkFetcherFactory
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeService
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.platform.CrossfadeAudioPlayer
-import de.ronnyporsch.open_rgb.kmusicplayer.platform.createAudioPlayer
-import de.ronnyporsch.open_rgb.kmusicplayer.platform.createYouTubeDownloader
+import de.ronnyporsch.open_rgb.kmusicplayer.platform.createHttpClient
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalMusicRepository
@@ -39,54 +38,73 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.playlist.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.search.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.KMusicPlayerTheme
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.onMouseNavigation
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun App() {
-    val apiService = remember { SubsonicApiService() }
-    val repository = remember { MusicRepositoryImpl(apiService) }
-    val settingsHolder = remember { SettingsHolder() }
-    val crossfadePlayer = remember {
-        CrossfadeAudioPlayer(createAudioPlayer(), createAudioPlayer())
+    // Cover art is loaded from the music server, whose certificate may only be accepted by our HTTP client
+    setSingletonImageLoaderFactory { context ->
+        ImageLoader.Builder(context)
+            .components { add(KtorNetworkFetcherFactory(httpClient = { createHttpClient() })) }
+            .build()
     }
-    val navigator = remember { Navigator() }
-    val playerViewModel = remember { PlayerViewModel(crossfadePlayer, repository, settingsHolder) }
-    val libraryViewModel = remember { LibraryViewModel(repository) }
-    val youTubeDownloader = remember { createYouTubeDownloader() }
-    val searchViewModel = remember { SearchViewModel(repository, settingsHolder, youTubeDownloader) }
+    // The connection and the player outlive the UI, e.g. an Android activity that gets closed while playing
+    val session = remember { AppSession.get() }
+    val settingsHolder = session.settingsHolder
+    val connection = session.connection
+    val repository = connection.repository
+    val youTube = remember { YouTubeService(connection) }
+    // With saved login info, start directly on the library while auto-login is still connecting in the background
+    val loggedIn = remember { session.autoLoginStatus.value.let { it != AutoLoginStatus.None && it !is AutoLoginStatus.Rejected } }
+    val navigator = remember { Navigator(if (loggedIn) Screen.Library else Screen.Login) }
+    val playerViewModel = session.playerViewModel
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val playlistEditor = remember {
+        PlaylistEditor(repository, scope) { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
+    val libraryViewModel = remember {
+        LibraryViewModel(
+            repository,
+            awaitingConnection = loggedIn,
+            playlistChanges = repository.playlistChanges,
+            downloads = connection.downloads,
+        )
+    }
+    val searchViewModel = remember { SearchViewModel(repository, youTube) }
     val coverArtUrlProvider = remember { CoverArtUrlProvider(repository) }
 
-    LaunchedEffect(youTubeDownloader) {
-        val downloader = youTubeDownloader ?: return@LaunchedEffect
-        settingsHolder.settings.collect { downloader.cookiesBrowser = it.youTubeCookiesBrowser.ifBlank { null } }
+    // (Re)load the library whenever a server got connected, it may be a different one
+    LaunchedEffect(connection) {
+        connection.connections.collect { count ->
+            if (count > 0) libraryViewModel.onEvent(LibraryEvent.Refresh)
+        }
     }
 
-    // Auto-login if saved settings exist
-    LaunchedEffect(Unit) {
-        val saved = settingsHolder.settings.value
-        if (saved.hasSavedConnection) {
-            try {
-                val salt = generateSalt()
-                val token = md5(saved.password + salt)
-                apiService.configure(
-                    ServerConfig(
-                        serverUrl = saved.serverUrl,
-                        username = saved.username,
-                        token = token,
-                        salt = salt,
-                    )
-                )
-                val success = repository.ping()
-                if (success) {
-                    libraryViewModel.onEvent(LibraryEvent.Refresh)
-                    navigator.replaceAll(Screen.Library)
+    LaunchedEffect(session) {
+        session.autoLoginStatus.collect { status ->
+            when (status) {
+                is AutoLoginStatus.Rejected -> if (navigator.currentScreen.value !is Screen.Login) {
+                    navigator.replaceAll(Screen.Login)
+                    snackbarHostState.showSnackbar("Login failed: ${status.message}", withDismissAction = true)
                 }
-            } catch (_: Exception) {
-                // Auto-login failed, stay on login screen
+                is AutoLoginStatus.Retrying -> {
+                    // Meanwhile show the playlists stored on the device
+                    libraryViewModel.onEvent(LibraryEvent.ConnectionFailed)
+                    launch {
+                        snackbarHostState.showSnackbar("${status.message}. Retrying…", duration = SnackbarDuration.Short)
+                    }
+                }
+                AutoLoginStatus.None, AutoLoginStatus.Connecting, AutoLoginStatus.Connected -> {}
             }
         }
     }
@@ -102,6 +120,15 @@ fun App() {
                     navigator.push(Screen.PlaylistSongs(effect.playlistId))
                 is LibraryEffect.PlaySongs ->
                     playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
+            }
+        }
+    }
+
+    LaunchedEffect(playerViewModel) {
+        playerViewModel.effects.collect { effect ->
+            when (effect) {
+                is PlayerEffect.PlaybackError ->
+                    snackbarHostState.showSnackbar("Playback failed: ${effect.message}", withDismissAction = true)
             }
         }
     }
@@ -123,18 +150,37 @@ fun App() {
         CompositionLocalProvider(
             LocalCoverArtUrlProvider provides coverArtUrlProvider,
             LocalMusicRepository provides repository,
+            LocalPlaylistEditor provides playlistEditor,
         ) {
         val currentScreen by navigator.currentScreen.collectAsState()
         val playerState by playerViewModel.state.collectAsState()
         val hasSong = playerState.playback.currentSong != null
 
+        // System back (Android back button/gesture) navigates within the app while there is a previous screen.
+        // Keyed on currentScreen so this scope recomposes on navigation (the back stack itself isn't observable)
+        val canGoBack = remember(currentScreen) { navigator.canGoBack() }
+        NavigationBackHandler(
+            state = rememberNavigationEventState(NavigationEventInfo.None),
+            isBackEnabled = canGoBack,
+            onBackCompleted = { navigator.pop() },
+        )
+
         Scaffold(
+            // Mouse back/forward buttons work anywhere in the window, including the top/bottom bars
+            modifier = Modifier.onMouseNavigation(
+                onBack = { if (navigator.canGoBack()) navigator.pop() },
+                onForward = { if (navigator.canGoForward()) navigator.forward() }
+            ),
             containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 if (currentScreen !is Screen.Login && currentScreen !is Screen.Player) {
                     val searchState by searchViewModel.state.collectAsState()
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (navigator.canGoBack()) {
@@ -177,6 +223,7 @@ fun App() {
                                 onArtistClick = { name ->
                                     navigator.push(Screen.ArtistAlbums(null, name))
                                 },
+                                onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                                 onClick = { navigator.push(Screen.Player) },
                             )
                         } else {
@@ -209,22 +256,15 @@ fun App() {
                                 else -> false
                             }
                         } else false
-                    }
-                    .onMouseNavigation(
-                        onBack = { if (navigator.canGoBack()) navigator.pop() },
-                        onForward = { if (navigator.canGoForward()) navigator.forward() }
-                    ),
+                    },
             ) {
                 when (val screen = currentScreen) {
                     is Screen.Login -> {
-                        val vm = remember { LoginViewModel(apiService, repository, settingsHolder) }
+                        val vm = remember { LoginViewModel(connection, settingsHolder.settings.value) }
                         LaunchedEffect(vm) {
                             vm.effects.collectLatest { effect ->
                                 when (effect) {
-                                    LoginEffect.NavigateToLibrary -> {
-                                        libraryViewModel.onEvent(LibraryEvent.Refresh)
-                                        navigator.replaceAll(Screen.Library)
-                                    }
+                                    LoginEffect.NavigateToLibrary -> navigator.replaceAll(Screen.Library)
                                 }
                             }
                         }
@@ -309,6 +349,7 @@ fun App() {
                             onArtistClick = { name ->
                                 navigator.push(Screen.ArtistAlbums(null, name))
                             },
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                             onBack = { navigator.pop() },
                         )
                     }
@@ -322,7 +363,7 @@ fun App() {
                     }
 
                     is Screen.Settings -> {
-                        val vm = remember { SettingsViewModel(apiService, repository, settingsHolder, youTubeDownloader != null) }
+                        val vm = remember { SettingsViewModel(connection, settingsHolder) }
                         SettingsScreen(vm) { navigator.pop() }
                     }
                 }

@@ -1,24 +1,36 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.login
 
-import de.ronnyporsch.open_rgb.kmusicplayer.data.api.SubsonicApiService
-import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerConfig
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicServerConnection
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AppSettings
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
-import de.ronnyporsch.open_rgb.kmusicplayer.util.generateSalt
-import de.ronnyporsch.open_rgb.kmusicplayer.util.md5
+import kotlinx.coroutines.CancellationException
 
 class LoginViewModel(
-    private val apiService: SubsonicApiService,
-    private val repository: MusicRepository,
-    private val settingsHolder: SettingsHolder,
-) : MviStore<LoginState, LoginEvent, LoginEffect>(LoginState()) {
+    private val connection: MusicServerConnection,
+    saved: AppSettings,
+) : MviStore<LoginState, LoginEvent, LoginEffect>(
+    // Pre-fill the last login, e.g. when the server rejected the saved password
+    if (saved.serverUrl.isBlank()) {
+        LoginState()
+    } else {
+        LoginState(
+            serverType = saved.serverType,
+            serverUrl = saved.serverUrl,
+            username = saved.username,
+            password = saved.password,
+            allowUntrustedCertificate = saved.allowUntrustedCertificate,
+        )
+    }
+) {
 
     override fun onEvent(event: LoginEvent) {
         when (event) {
+            is LoginEvent.ServerTypeChanged -> setState { copy(serverType = event.type, error = null) }
             is LoginEvent.ServerUrlChanged -> setState { copy(serverUrl = event.url, error = null) }
             is LoginEvent.UsernameChanged -> setState { copy(username = event.username, error = null) }
             is LoginEvent.PasswordChanged -> setState { copy(password = event.password, error = null) }
+            is LoginEvent.AllowUntrustedCertificateToggled ->
+                setState { copy(allowUntrustedCertificate = event.allow, error = null) }
             is LoginEvent.ConnectClicked -> connect()
         }
     }
@@ -34,30 +46,17 @@ class LoginViewModel(
 
         launch {
             try {
-                val salt = generateSalt()
-                val token = md5(state.password + salt)
-                val config = ServerConfig(
-                    serverUrl = state.serverUrl.trimEnd('/'),
-                    username = state.username,
-                    token = token,
-                    salt = salt,
+                connection.connect(
+                    state.serverType,
+                    state.serverUrl,
+                    state.username,
+                    state.password,
+                    state.allowUntrustedCertificate,
                 )
-                apiService.configure(config)
-
-                val success = repository.ping()
-                if (success) {
-                    settingsHolder.update {
-                        copy(
-                            serverUrl = state.serverUrl.trimEnd('/'),
-                            username = state.username,
-                            password = state.password,
-                        )
-                    }
-                    setState { copy(isLoading = false) }
-                    emitEffect(LoginEffect.NavigateToLibrary)
-                } else {
-                    setState { copy(isLoading = false, error = "Connection failed. Check your credentials.") }
-                }
+                setState { copy(isLoading = false) }
+                emitEffect(LoginEffect.NavigateToLibrary)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 setState { copy(isLoading = false, error = e.message ?: "Connection error") }
             }

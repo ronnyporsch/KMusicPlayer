@@ -19,6 +19,7 @@ class PlayerViewModel(
     private var hasAutoAdvanced = false
     private var hasPreparedNext = false
     private var hasCrossfadeStarted = false
+    private var lastError: String? = null
 
     private val crossfadePlayer: CrossfadeAudioPlayer?
         get() = audioPlayer as? CrossfadeAudioPlayer
@@ -26,6 +27,11 @@ class PlayerViewModel(
     init {
         launch {
             audioPlayer.state.collectLatest { playerState ->
+                if (playerState.error != null && playerState.error != lastError) {
+                    emitEffect(PlayerEffect.PlaybackError(playerState.error))
+                }
+                lastError = playerState.error
+
                 setState {
                     copy(
                         playback = playback.copy(
@@ -68,8 +74,7 @@ class PlayerViewModel(
                         }
                         if (preBufferThreshold > 0 && remainingMs <= preBufferThreshold) {
                             hasPreparedNext = true
-                            val url = repository.getStreamUrl(nextSong.id)
-                            crossfadePlayer?.prepareNext(url)
+                            streamUrl(nextSong)?.let { crossfadePlayer?.prepareNext(it) }
                         }
                     }
 
@@ -115,6 +120,15 @@ class PlayerViewModel(
         when (event) {
             is PlayerEvent.PlaySongs -> playSongs(event.songs, event.startIndex, event.shuffle)
             is PlayerEvent.PlayPause -> togglePlayPause()
+            is PlayerEvent.Play -> when (currentState.playback.status) {
+                PlaybackStatus.Paused -> audioPlayer.resume()
+                PlaybackStatus.Idle -> playCurrent()
+                PlaybackStatus.Playing, PlaybackStatus.Buffering -> {}
+            }
+            is PlayerEvent.Pause -> when (currentState.playback.status) {
+                PlaybackStatus.Playing, PlaybackStatus.Buffering -> audioPlayer.pause()
+                PlaybackStatus.Paused, PlaybackStatus.Idle -> {}
+            }
             is PlayerEvent.Next -> playNext()
             is PlayerEvent.Previous -> playPrevious()
             is PlayerEvent.ToggleShuffle -> toggleShuffle()
@@ -207,9 +221,22 @@ class PlayerViewModel(
 
     private fun playCurrent() {
         val song = currentState.playback.currentSong ?: return
-        val url = repository.getStreamUrl(song.id)
+        val url = streamUrl(song)
+        if (url == null) {
+            audioPlayer.stop()
+            emitEffect(PlayerEffect.PlaybackError("\"${song.title}\" isn't available offline"))
+            return
+        }
         audioPlayer.play(url)
     }
+
+    /** Null if the song can't be played, i.e. while not connected to the server it isn't downloaded. */
+    private fun streamUrl(song: Song): String? =
+        try {
+            repository.getStreamUrl(song.id)
+        } catch (_: IllegalStateException) {
+            null
+        }
 
     private fun togglePlayPause() {
         val status = currentState.playback.status

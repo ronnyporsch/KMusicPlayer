@@ -23,6 +23,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 
 @Composable
@@ -64,7 +65,7 @@ fun AlbumDetailScreen(
                 modifier = Modifier.onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
                         val album = state.album ?: return@onKeyEvent false
-                        val currentIndex = album.songs.indexOfFirst { it.id == state.selectedSongId }
+                        val currentIndex = album.songs.indexOfFirst { it.id in state.selectedSongIds }
                         when (event.key) {
                             Key.DirectionDown -> {
                                 if (currentIndex < album.songs.size - 1) {
@@ -163,7 +164,9 @@ fun AlbumDetailScreen(
                         onArtistClick = { name -> viewModel.onEvent(AlbumDetailEvent.ArtistClicked(name)) },
                         onSongClick = { viewModel.onEvent(AlbumDetailEvent.SongClicked(song, index)) },
                         onSongDoubleClick = { viewModel.onEvent(AlbumDetailEvent.SongDoubleClicked(song, index)) },
-                        isSelected = state.selectedSongId == song.id,
+                        onSongCtrlClick = { viewModel.onEvent(AlbumDetailEvent.SongSelectionToggled(song)) },
+                        contextMenuSongs = { album.songs.contextMenuSongs(song, state.selectedSongIds) },
+                        isSelected = song.id in state.selectedSongIds,
                         isPlaying = currentSongId == song.id,
                     )
                 }

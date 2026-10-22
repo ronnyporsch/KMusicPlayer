@@ -14,7 +14,8 @@ class CrossfadeAudioPlayer(
     private val _state = MutableStateFlow(AudioPlayerState())
     override val state: StateFlow<AudioPlayerState> = _state.asStateFlow()
 
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    // Main: platform players (ExoPlayer) must only be accessed from the thread that created them
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var stateCollectionJob: Job? = null
     private var crossfadeJob: Job? = null
 

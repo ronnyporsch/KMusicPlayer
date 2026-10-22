@@ -34,6 +34,10 @@ class AudioPlayerWasmJs : AudioPlayer {
         audio.addEventListener("waiting", {
             _state.value = _state.value.copy(isBuffering = true)
         })
+        audio.addEventListener("error", {
+            positionJob?.cancel()
+            _state.value = AudioPlayerState(error = describeMediaError(audio.error?.code?.toInt()))
+        })
     }
 
     private fun updateState(isPlaying: Boolean) {
@@ -54,7 +58,15 @@ class AudioPlayerWasmJs : AudioPlayer {
         }
     }
 
+    private fun describeMediaError(code: Int?) = when (code) {
+        2 -> "Network error while loading the audio stream"
+        3 -> "The audio stream could not be decoded"
+        4 -> "The audio stream is unreachable or its format is not supported"
+        else -> "Could not load the audio stream"
+    }
+
     override fun play(url: String) {
+        _state.value = AudioPlayerState(isBuffering = true)
         audio.src = url
         audio.load()
         audio.play()

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>KMusicPlayer</title>
+</head>
+<body>
+    <div id="KMusicPlayerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="KMusicPlayerConfigForm">
+                    <div class="verticalSection">
+                        <h2 class="sectionTitle">KMusicPlayer</h2>
+                        <p>Searches YouTube Music for KMusicPlayer clients and downloads the tracks they pick into the music library with yt-dlp.</p>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="DownloadDirectory">Download folder</label>
+                        <input id="DownloadDirectory" name="DownloadDirectory" type="text" is="emby-input" />
+                        <div class="fieldDescription">Files are saved as Album Artist/Album/NN Title. Leave blank to use the first folder of the first music library.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CookiesFile">Cookies file</label>
+                        <input id="CookiesFile" name="CookiesFile" type="text" is="emby-input" />
+                        <div class="fieldDescription">Path of a cookies.txt file (Netscape format) with your YouTube login, e.g. /cookies.txt mounted into the Jellyfin container. Used instead of the browser cookies below. Leave blank to use the browser cookies.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CookiesFromBrowser">Use cookies from browser</label>
+                        <input id="CookiesFromBrowser" name="CookiesFromBrowser" type="text" is="emby-input" />
+                        <div class="fieldDescription">Browser yt-dlp reads your YouTube login from (firefox, chrome, chromium, brave, edge, opera, vivaldi, ...), e.g. for Premium audio quality and to avoid bot checks. Leave blank to download without signing in.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="BrowserProfile">Browser profile</label>
+                        <input id="BrowserProfile" name="BrowserProfile" type="text" is="emby-input" />
+                        <div class="fieldDescription">Profile name or folder, e.g. a Firefox profile folder mounted into the Jellyfin container. Leave blank for the default profile of the user Jellyfin runs as. If the cookies can't be read, tracks are downloaded without signing in.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="YtDlpPath">yt-dlp path</label>
+                        <input id="YtDlpPath" name="YtDlpPath" type="text" is="emby-input" />
+                        <div class="fieldDescription">Leave blank to use the yt-dlp shipped with the plugin (Linux x64 and arm64, kept up to date), or on other platforms yt-dlp from the PATH. ffmpeg and ffprobe are used from the PATH, or Jellyfin's own if they aren't installed.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="AllowNonAdminDownloads" name="AllowNonAdminDownloads" type="checkbox" is="emby-checkbox" />
+                            <span>Allow all users to download</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Otherwise only administrators can add tracks to the library.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxConcurrentDownloads">Parallel downloads</label>
+                        <input id="MaxConcurrentDownloads" name="MaxConcurrentDownloads" type="number" min="1" max="8" is="emby-input" />
+                        <div class="fieldDescription">Takes effect after restarting Jellyfin.</div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginId = '38651385-45e3-4f8e-bc70-c45f5910a4a0';
+                var textFields = ['DownloadDirectory', 'CookiesFile', 'CookiesFromBrowser', 'BrowserProfile', 'YtDlpPath'];
+                var checkboxes = ['AllowNonAdminDownloads'];
+                var page = document.querySelector('#KMusicPlayerConfigPage');
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        textFields.forEach(function (name) { page.querySelector('#' + name).value = config[name] || ''; });
+                        checkboxes.forEach(function (name) { page.querySelector('#' + name).checked = config[name]; });
+                        page.querySelector('#MaxConcurrentDownloads').value = config.MaxConcurrentDownloads;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+                page.querySelector('#KMusicPlayerConfigForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        textFields.forEach(function (name) { config[name] = page.querySelector('#' + name).value.trim(); });
+                        checkboxes.forEach(function (name) { config[name] = page.querySelector('#' + name).checked; });
+                        config.MaxConcurrentDownloads = parseInt(page.querySelector('#MaxConcurrentDownloads').value, 10) || 2;
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

@@ -5,29 +5,35 @@ import de.ronnyporsch.open_rgb.kmusicplayer.platform.saveSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class PlaybackSettings(
     val gaplessEnabled: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,
 )
 
+enum class ServerType(val displayName: String) {
+    Jellyfin("Jellyfin"),
+    Subsonic("Navidrome / Subsonic"),
+}
+
+@Serializable
 data class AppSettings(
+    val serverType: ServerType = ServerType.Subsonic,
     val serverUrl: String = "",
     val username: String = "",
     val password: String = "",
+    /** Accept the server's TLS certificate even if it isn't trusted, e.g. because it's self-signed. */
+    val allowUntrustedCertificate: Boolean = false,
     val playback: PlaybackSettings = PlaybackSettings(),
-    /** Folder (usually the server's music folder, local or mounted) that YouTube Music downloads are written to. */
-    val youTubeDownloadDir: String = "",
-    /** Browser yt-dlp reads YouTube cookies from (one of [YT_DLP_COOKIE_BROWSERS]), or blank for none. */
-    val youTubeCookiesBrowser: String = "",
+    /** Identifies this installation to Jellyfin, so logging in again replaces the previous session. */
+    val jellyfinDeviceId: String = "",
 ) {
     val hasSavedConnection: Boolean
         get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
 }
-
-/** Browsers supported by yt-dlp's `--cookies-from-browser`. */
-val YT_DLP_COOKIE_BROWSERS = listOf("brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi", "whale")
 
 class SettingsHolder {
     private val _settings = MutableStateFlow(loadSettings() ?: AppSettings())

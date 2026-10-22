@@ -3,6 +3,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
 
 class PlaylistDetailViewModel(
     private val playlistId: String,
@@ -15,16 +16,18 @@ class PlaylistDetailViewModel(
 
     override fun onEvent(event: PlaylistDetailEvent) {
         when (event) {
+            is PlaylistDetailEvent.SongSelectionToggled ->
+                setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is PlaylistDetailEvent.SongClicked -> {
                 if (getPlatform().isMobile) {
                     val songs = currentState.playlist?.songs ?: return
                     emitEffect(PlaylistDetailEffect.PlaySongs(songs, event.index))
                 } else {
-                    setState { copy(selectedSongId = event.song.id) }
+                    setState { copy(selectedSongIds = setOf(event.song.id)) }
                 }
             }
             is PlaylistDetailEvent.SongDoubleClicked -> {
-                setState { copy(selectedSongId = event.song.id) }
+                setState { copy(selectedSongIds = setOf(event.song.id)) }
                 val songs = currentState.playlist?.songs ?: return
                 emitEffect(PlaylistDetailEffect.PlaySongs(songs, event.index))
             }

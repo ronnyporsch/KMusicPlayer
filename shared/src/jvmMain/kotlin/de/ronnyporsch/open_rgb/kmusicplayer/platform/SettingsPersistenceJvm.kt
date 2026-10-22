@@ -2,19 +2,21 @@ package de.ronnyporsch.open_rgb.kmusicplayer.platform
 
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AppSettings
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackSettings
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerType
 import java.util.prefs.Preferences
 
 private val prefs = Preferences.userNodeForPackage(AppSettings::class.java)
 
 actual fun saveSettings(settings: AppSettings) {
+    prefs.put("serverType", settings.serverType.name)
     prefs.put("serverUrl", settings.serverUrl)
     prefs.put("username", settings.username)
     prefs.put("password", settings.password)
+    prefs.putBoolean("allowUntrustedCertificate", settings.allowUntrustedCertificate)
     prefs.putBoolean("gaplessEnabled", settings.playback.gaplessEnabled)
     prefs.putBoolean("crossfadeEnabled", settings.playback.crossfadeEnabled)
     prefs.putInt("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds)
-    prefs.put("youTubeDownloadDir", settings.youTubeDownloadDir)
-    prefs.put("youTubeCookiesBrowser", settings.youTubeCookiesBrowser)
+    prefs.put("jellyfinDeviceId", settings.jellyfinDeviceId)
     prefs.flush()
 }
 
@@ -22,15 +24,16 @@ actual fun loadSettings(): AppSettings? {
     val serverUrl = prefs.get("serverUrl", "") ?: ""
     if (serverUrl.isBlank()) return null
     return AppSettings(
+        serverType = ServerType.entries.firstOrNull { it.name == prefs.get("serverType", "") } ?: ServerType.Subsonic,
         serverUrl = serverUrl,
         username = prefs.get("username", "") ?: "",
         password = prefs.get("password", "") ?: "",
+        allowUntrustedCertificate = prefs.getBoolean("allowUntrustedCertificate", false),
         playback = PlaybackSettings(
             gaplessEnabled = prefs.getBoolean("gaplessEnabled", false),
             crossfadeEnabled = prefs.getBoolean("crossfadeEnabled", false),
             crossfadeDurationSeconds = prefs.getInt("crossfadeDurationSeconds", 5),
         ),
-        youTubeDownloadDir = prefs.get("youTubeDownloadDir", "") ?: "",
-        youTubeCookiesBrowser = prefs.get("youTubeCookiesBrowser", "") ?: "",
+        jellyfinDeviceId = prefs.get("jellyfinDeviceId", "") ?: "",
     )
 }

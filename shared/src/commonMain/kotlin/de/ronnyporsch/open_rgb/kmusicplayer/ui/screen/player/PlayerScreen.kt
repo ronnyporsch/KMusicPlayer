@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.GraphicEq
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.HoverLinkText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
@@ -53,6 +54,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
 fun PlayerScreen(
     viewModel: PlayerViewModel,
     onArtistClick: (artistName: String) -> Unit,
+    onAlbumClick: (albumId: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
@@ -91,14 +93,14 @@ fun PlayerScreen(
 
         Spacer(Modifier.weight(0.5f))
 
-        Text(
-            text = song?.title ?: "Not Playing",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Box(Modifier.fillMaxWidth()) {
+            HoverLinkText(
+                text = song?.title ?: "Not Playing",
+                onClick = song?.albumId?.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        }
 
         if (song != null) {
             ClickableArtistText(

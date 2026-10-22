@@ -2,12 +2,11 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.search
 
 import androidx.lifecycle.viewModelScope
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
-import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeMusicApi
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeService
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
-import de.ronnyporsch.open_rgb.kmusicplayer.platform.YouTubeDownloader
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -16,15 +15,29 @@ import kotlinx.coroutines.launch
 
 class SearchViewModel(
     private val repository: MusicRepository,
-    private val settingsHolder: SettingsHolder,
-    private val youTubeDownloader: YouTubeDownloader?,
-    private val youTubeMusicApi: YouTubeMusicApi = YouTubeMusicApi(),
-) : MviStore<SearchState, SearchEvent, SearchEffect>(SearchState(youTubeAvailable = youTubeDownloader != null)) {
+    private val youTube: YouTubeService,
+) : MviStore<SearchState, SearchEvent, SearchEffect>(SearchState()) {
 
     private var youTubeSearchJob: Job? = null
 
+    init {
+        // Server-side YouTube support depends on the connected server
+        viewModelScope.launch {
+            youTube.capabilities.collect { capabilities ->
+                setState {
+                    copy(
+                        youTubeAvailable = capabilities.available,
+                        youTubeDownloadAvailable = capabilities.canDownload,
+                    )
+                }
+            }
+        }
+    }
+
     override fun onEvent(event: SearchEvent) {
         when (event) {
+            is SearchEvent.SongSelectionToggled ->
+                setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is SearchEvent.QueryChanged -> {
                 setState { copy(query = event.query) }
                 if (event.query.length >= 2) {
@@ -50,12 +63,12 @@ class SearchViewModel(
         if (getPlatform().isMobile) {
             emitEffect(SearchEffect.PlaySongs(songs, index))
         } else {
-            setState { copy(selectedSongId = song.id) }
+            setState { copy(selectedSongIds = setOf(song.id)) }
         }
     }
 
     private fun play(songs: List<Song>, song: Song, index: Int) {
-        setState { copy(selectedSongId = song.id) }
+        setState { copy(selectedSongIds = setOf(song.id)) }
         emitEffect(SearchEffect.PlaySongs(songs, index))
     }
 
@@ -89,7 +102,7 @@ class SearchViewModel(
             // Debounce: the query changes on every keystroke
             delay(400)
             try {
-                val songs = youTubeMusicApi.searchSongs(query)
+                val songs = youTube.searchSongs(query)
                 setState { copy(youTubeSongs = songs, isYouTubeLoading = false, youTubeError = null) }
                 loadYouTubeStreamInfo(songs)
             } catch (e: CancellationException) {
@@ -108,11 +121,10 @@ class SearchViewModel(
 
     /** The search API doesn't report codecs/bitrates, so look them up per song and fill them in as they arrive. */
     private suspend fun loadYouTubeStreamInfo(songs: List<Song>) {
-        val downloader = youTubeDownloader ?: return
         coroutineScope {
             for (song in songs) {
                 launch {
-                    val info = runCatching { downloader.audioStreamInfo(song) }
+                    val info = runCatching { youTube.audioStreamInfo(song) }
                         .onFailure { if (it is CancellationException) throw it }
                         .getOrNull() ?: return@launch
                     setState {
@@ -127,24 +139,12 @@ class SearchViewModel(
     }
 
     private fun download(song: Song) {
-        val downloader = youTubeDownloader ?: return
+        if (!currentState.youTubeDownloadAvailable) return
         if (currentState.downloads[song.id] == DownloadStatus.InProgress) return
-        val targetDir = settingsHolder.settings.value.youTubeDownloadDir
-        if (targetDir.isBlank()) {
-            setDownloadStatus(song, DownloadStatus.Failed("Set a download folder in Settings first"))
-            return
-        }
         setDownloadStatus(song, DownloadStatus.InProgress)
         launch {
             try {
-                val path = downloader.download(song, targetDir)
-                val scanStarted = repository.startScan().getOrDefault(false)
-                val message = if (scanStarted) {
-                    "Saved to $path, library scan started"
-                } else {
-                    "Saved to $path. Could not start a library scan (needs an admin user), the server will pick it up on its next scan"
-                }
-                setDownloadStatus(song, DownloadStatus.Done(message))
+                setDownloadStatus(song, DownloadStatus.Done(youTube.download(song)))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

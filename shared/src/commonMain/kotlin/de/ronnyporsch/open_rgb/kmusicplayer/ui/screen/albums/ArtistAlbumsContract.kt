@@ -14,13 +14,15 @@ data class ArtistAlbumsState(
     val isLoading: Boolean = false,
     val isSongsLoading: Boolean = false,
     val error: String? = null,
-    val selectedSongId: String? = null,
+    val selectedSongIds: Set<String> = emptySet(),
 )
 
 sealed class ArtistAlbumsEvent {
     data class AlbumClicked(val album: Album) : ArtistAlbumsEvent()
     data class SongClicked(val song: Song, val index: Int) : ArtistAlbumsEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : ArtistAlbumsEvent()
+    /** Ctrl-click: adds the song to or removes it from the selection. */
+    data class SongSelectionToggled(val song: Song) : ArtistAlbumsEvent()
     data object PlayAllSongs : ArtistAlbumsEvent()
     data object ShuffleAllSongs : ArtistAlbumsEvent()
 }

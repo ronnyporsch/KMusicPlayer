@@ -1,4 +1,6 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -42,12 +44,28 @@ kotlin {
         }
     }
 
+    // Code shared by the JVM and Android targets
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common {
+            group("jvmCommon") {
+                withJvm()
+                withCompilations { it.target.platformType == KotlinPlatformType.androidJvm }
+            }
+        }
+    }
+
     sourceSets {
+        getByName("jvmCommonMain").dependencies {
+            implementation(libs.ktor.client.okhttp)
+        }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
-            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.media3.exoplayer)
+            implementation(libs.androidx.media3.datasource.okhttp)
+            implementation(libs.androidx.media3.session)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -59,6 +77,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.androidx.navigationevent.compose)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
@@ -72,10 +91,13 @@ kotlin {
             implementation(libs.kotlin.test)
         }
         jvmMain.dependencies {
-            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.jlayer)
             implementation(libs.mp3spi)
             implementation(libs.jflac)
+            // MPRIS, so media keys and desktop media widgets on Linux can control playback
+            implementation(libs.dbus.java.core)
+            implementation(libs.dbus.java.transport.unixsocket)
         }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)

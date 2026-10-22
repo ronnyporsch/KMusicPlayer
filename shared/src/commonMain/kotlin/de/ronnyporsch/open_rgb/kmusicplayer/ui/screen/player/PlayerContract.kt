@@ -10,6 +10,8 @@ data class PlayerState(
 sealed class PlayerEvent {
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlayerEvent()
     data object PlayPause : PlayerEvent()
+    data object Play : PlayerEvent()
+    data object Pause : PlayerEvent()
     data object Next : PlayerEvent()
     data object Previous : PlayerEvent()
     data object ToggleShuffle : PlayerEvent()
@@ -18,4 +20,6 @@ sealed class PlayerEvent {
     data class SeekTo(val positionMs: Long) : PlayerEvent()
 }
 
-sealed class PlayerEffect
+sealed class PlayerEffect {
+    data class PlaybackError(val message: String) : PlayerEffect()
+}

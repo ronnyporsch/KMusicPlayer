@@ -2,15 +2,28 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library
 
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import de.ronnyporsch.open_rgb.kmusicplayer.data.offline.PlaylistDownloads
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
+import de.ronnyporsch.open_rgb.kmusicplayer.util.newestAlbumsFirst
+import de.ronnyporsch.open_rgb.kmusicplayer.util.newestFirst
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 class LibraryViewModel(
     private val repository: MusicRepository,
-) : MviStore<LibraryState, LibraryEvent, LibraryEffect>(LibraryState()) {
+    /** Show the loading indicator until the first (auto-)login has connected the repository. */
+    awaitingConnection: Boolean = false,
+    /** Ids of playlists changed elsewhere, e.g. through the song context menu. */
+    playlistChanges: Flow<String> = emptyFlow(),
+    private val downloads: PlaylistDownloads? = null,
+) : MviStore<LibraryState, LibraryEvent, LibraryEffect>(
+    LibraryState(isLoading = awaitingConnection, canDownloadPlaylists = downloads?.isSupported == true)
+) {
 
     val artistSidebarState = LazyListState()
     val artistDetailState = LazyGridState()
@@ -23,15 +36,29 @@ class LibraryViewModel(
         if (repository.isConfigured) {
             loadAll()
         }
+        launch {
+            playlistChanges.collect { playlistId ->
+                repository.getPlaylists().onSuccess { setState { copy(playlists = it) } }
+                if (currentState.selectedPlaylistId == playlistId) loadPlaylist(playlistId, force = true)
+            }
+        }
+        if (downloads != null) {
+            launch { downloads.status.collect { setState { copy(playlistDownloads = it) } } }
+        }
     }
 
     override fun onEvent(event: LibraryEvent) {
         when (event) {
+            is LibraryEvent.SongSelectionToggled ->
+                setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is LibraryEvent.SidebarTabSelected -> {
                 setState { copy(selectedSidebarTab = event.tab) }
                 loadTabData(event.tab)
             }
             is LibraryEvent.Refresh -> loadAll()
+            is LibraryEvent.ConnectionFailed -> if (currentState.isLoading) loadOffline()
+            is LibraryEvent.DownloadPlaylist -> downloads?.download(event.playlist)
+            is LibraryEvent.RemovePlaylistDownload -> downloads?.remove(event.playlist.id)
             is LibraryEvent.ArtistClicked -> {
                 setState {
                     copy(
@@ -85,11 +112,11 @@ class LibraryViewModel(
                 if (getPlatform().isMobile) {
                     emitEffect(LibraryEffect.PlaySongs(currentState.selectedArtistSongs, event.index))
                 } else {
-                    setState { copy(selectedSongId = event.song.id) }
+                    setState { copy(selectedSongIds = setOf(event.song.id)) }
                 }
             }
             is LibraryEvent.ArtistSongDoubleClicked -> {
-                setState { copy(selectedSongId = event.song.id) }
+                setState { copy(selectedSongIds = setOf(event.song.id)) }
                 emitEffect(LibraryEffect.PlaySongs(currentState.selectedArtistSongs, event.index))
             }
             is LibraryEvent.AlbumClicked -> {
@@ -188,33 +215,12 @@ class LibraryViewModel(
                     }
                 }
             }
-            is LibraryEvent.CreatePlaylist -> {
-                launch {
-                    repository.createPlaylist(event.name).onSuccess {
-                        repository.getPlaylists().onSuccess {
-                            setState { copy(playlists = it) }
-                        }
-                    }
-                }
-            }
-            is LibraryEvent.AddSongToPlaylist -> {
-                launch {
-                    repository.addSongToPlaylist(event.playlist.id, event.song.id).onSuccess {
-                        if (currentState.selectedPlaylistId == event.playlist.id) {
-                            loadPlaylist(event.playlist.id)
-                        }
-                    }
-                }
-            }
-            is LibraryEvent.RemoveSongFromPlaylist -> {
-                launch {
-                    repository.removeSongFromPlaylist(event.playlist.id, event.index).onSuccess {
-                        if (currentState.selectedPlaylistId == event.playlist.id) {
-                            loadPlaylist(event.playlist.id)
-                        }
-                    }
-                }
-            }
+            // The playlists get reloaded through playlistChanges
+            is LibraryEvent.CreatePlaylist -> launch { repository.createPlaylist(event.name) }
+            is LibraryEvent.AddSongToPlaylist ->
+                launch { repository.addSongsToPlaylist(event.playlist.id, listOf(event.song.id)) }
+            is LibraryEvent.RemoveSongFromPlaylist ->
+                launch { repository.removeSongFromPlaylist(event.playlist.id, event.index) }
             is LibraryEvent.PlayAllPlaylistSongs -> {
                 val songs = currentState.selectedPlaylist?.songs.orEmpty()
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
@@ -233,12 +239,12 @@ class LibraryViewModel(
                     if (getPlatform().isMobile) {
                         emitEffect(LibraryEffect.PlaySongs(songs, event.index))
                     } else {
-                        setState { copy(selectedSongId = event.song.id) }
+                        setState { copy(selectedSongIds = setOf(event.song.id)) }
                     }
                 }
             }
             is LibraryEvent.SongDoubleClicked -> {
-                setState { copy(selectedSongId = event.song.id) }
+                setState { copy(selectedSongIds = setOf(event.song.id)) }
                 val songs = when (currentState.activeDetailView) {
                     LibraryDetailView.Albums -> currentState.selectedAlbum?.songs.orEmpty()
                     LibraryDetailView.Playlists -> currentState.selectedPlaylist?.songs.orEmpty()
@@ -248,6 +254,12 @@ class LibraryViewModel(
                     emitEffect(LibraryEffect.PlaySongs(songs, event.index))
                 }
             }
+            is LibraryEvent.OpenArtistScreen ->
+                emitEffect(LibraryEffect.NavigateToArtist(event.artist.id.ifEmpty { null }, event.artist.name))
+            is LibraryEvent.OpenAlbumScreen ->
+                emitEffect(LibraryEffect.NavigateToAlbum(event.album.id))
+            is LibraryEvent.OpenPlaylistScreen ->
+                emitEffect(LibraryEffect.NavigateToPlaylist(event.playlist.id))
             is LibraryEvent.SongArtistClicked -> {
                 emitEffect(LibraryEffect.NavigateToArtist(null, event.artistName))
             }
@@ -257,8 +269,25 @@ class LibraryViewModel(
         }
     }
 
+    /** Shows the playlists stored on the device, as long as the server isn't reachable. */
+    private fun loadOffline() {
+        launch {
+            val playlists = repository.getPlaylists().getOrDefault(emptyList())
+            setState {
+                copy(
+                    isLoading = false,
+                    isOffline = true,
+                    playlists = playlists,
+                    selectedSidebarTab = LibrarySidebarTab.Playlists,
+                    activeDetailView = LibraryDetailView.Playlists,
+                )
+            }
+            ensureDefaultSelection()
+        }
+    }
+
     private fun loadAll() {
-        setState { copy(isLoading = true, error = null) }
+        setState { copy(isLoading = true, isOffline = false, error = null) }
         launch {
             val artistsResult = repository.getArtists()
             val playlistsResult = repository.getPlaylists()
@@ -437,7 +466,7 @@ class LibraryViewModel(
         launch {
             repository.getArtistAlbums(artistId)
                 .onSuccess { albums ->
-                    val dedupedAlbums = albums.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }
+                    val dedupedAlbums = albums.distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }.newestFirst()
                     setState { copy(selectedArtistAlbums = dedupedAlbums) }
                     loadAppearsOnAlbums(
                         currentState.selectedArtist?.name.orEmpty(),
@@ -457,7 +486,7 @@ class LibraryViewModel(
         launch {
             repository.getAppearsOnAlbums(artistName, albumIds)
                 .onSuccess { albums ->
-                    setState { copy(selectedArtistAppearsOnAlbums = albums) }
+                    setState { copy(selectedArtistAppearsOnAlbums = albums.newestFirst()) }
                 }
         }
     }
@@ -481,7 +510,7 @@ class LibraryViewModel(
         setState { copy(selectedArtistSongsLoading = true) }
         launch {
             repository.getSongsForArtist(artistName, albumIds)
-                .onSuccess { songs -> setState { copy(selectedArtistSongs = songs, selectedArtistSongsLoading = false) } }
+                .onSuccess { songs -> setState { copy(selectedArtistSongs = songs.newestAlbumsFirst(), selectedArtistSongsLoading = false) } }
                 .onFailure { setState { copy(selectedArtistSongsLoading = false) } }
         }
     }
@@ -499,8 +528,8 @@ class LibraryViewModel(
         }
     }
 
-    private fun loadPlaylist(playlistId: String) {
-        if (currentState.selectedPlaylistId == playlistId && currentState.selectedPlaylist != null && !currentState.selectedPlaylistLoading) {
+    private fun loadPlaylist(playlistId: String, force: Boolean = false) {
+        if (!force && currentState.selectedPlaylistId == playlistId && currentState.selectedPlaylist != null && !currentState.selectedPlaylistLoading) {
             return
         }
 
@@ -519,7 +548,13 @@ class LibraryViewModel(
                     setState { copy(selectedPlaylist = playlist, selectedPlaylistLoading = false) }
                 }
                 .onFailure { error ->
-                    setState { copy(selectedPlaylistLoading = false, error = error.message ?: "Unable to load playlist") }
+                    // Offline only playlists that were opened or downloaded before are available; the pane says so
+                    setState {
+                        copy(
+                            selectedPlaylistLoading = false,
+                            error = if (isOffline) null else error.message ?: "Unable to load playlist",
+                        )
+                    }
                 }
         }
     }
