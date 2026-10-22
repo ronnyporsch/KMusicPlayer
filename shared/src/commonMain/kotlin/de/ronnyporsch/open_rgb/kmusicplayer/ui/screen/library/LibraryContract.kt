@@ -6,13 +6,13 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 
-enum class LibrarySidebarTab { Artists, Albums, Playlists }
+enum class LibrarySidebarTab { Playlists, Artists, Albums }
 
 enum class LibraryDetailView { Artists, Albums, Playlists }
 
 data class LibraryState(
-    val selectedSidebarTab: LibrarySidebarTab = LibrarySidebarTab.Artists,
-    val activeDetailView: LibraryDetailView = LibraryDetailView.Artists,
+    val selectedSidebarTab: LibrarySidebarTab = LibrarySidebarTab.Playlists,
+    val activeDetailView: LibraryDetailView = LibraryDetailView.Playlists,
     val artists: List<Artist> = emptyList(),
     val selectedArtistId: String? = null,
     val selectedArtist: Artist? = null,

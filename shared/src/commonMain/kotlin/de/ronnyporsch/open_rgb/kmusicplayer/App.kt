@@ -183,7 +183,10 @@ fun App() {
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (navigator.canGoBack()) {
+                        // These screens draw their own back button in their header
+                        val hasOwnBackButton = currentScreen is Screen.ArtistAlbums || currentScreen is Screen.AlbumSongs ||
+                            currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings
+                        if (navigator.canGoBack() && !hasOwnBackButton) {
                             IconButton(onClick = { navigator.pop() }) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowBack,
@@ -197,7 +200,10 @@ fun App() {
                             value = searchState.query,
                             onValueChange = {
                                 searchViewModel.onEvent(SearchEvent.QueryChanged(it))
-                                if (currentScreen !is Screen.Search) {
+                                // Results only show while there is a query; clearing it goes back
+                                if (it.isEmpty()) {
+                                    if (currentScreen is Screen.Search) navigator.pop()
+                                } else if (currentScreen !is Screen.Search) {
                                     navigator.push(Screen.Search)
                                 }
                             },
@@ -208,6 +214,8 @@ fun App() {
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = SpotifyGreen,
                                 cursorColor = SpotifyGreen,
+                                focusedPlaceholderColor = SpotifyLightGray,
+                                unfocusedPlaceholderColor = SpotifyLightGray,
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
@@ -398,28 +406,6 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
                     "Library",
                     color = if (currentScreen is Screen.Library) SpotifyGreen else SpotifyLightGray,
                     fontWeight = if (currentScreen is Screen.Library) FontWeight.Bold else FontWeight.Normal,
-                )
-            },
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-        )
-
-        NavigationBarItem(
-            selected = currentScreen is Screen.Search,
-            onClick = {
-                if (currentScreen !is Screen.Search) {
-                    navigator.push(Screen.Search)
-                }
-            },
-            icon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = if (currentScreen is Screen.Search) SpotifyGreen else SpotifyLightGray)
-            },
-            label = {
-                Text(
-                    "Search",
-                    color = if (currentScreen is Screen.Search) SpotifyGreen else SpotifyLightGray,
-                    fontWeight = if (currentScreen is Screen.Search) FontWeight.Bold else FontWeight.Normal,
                 )
             },
             colors = NavigationBarItemDefaults.colors(

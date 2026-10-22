@@ -43,7 +43,8 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 fun SongRow(
     song: Song,
     onSongClick: () -> Unit,
-    onArtistClick: (String) -> Unit,
+    /** Makes the artist names links; null shows them as plain text. */
+    onArtistClick: ((String) -> Unit)?,
     index: Int? = null,
     onAlbumClick: ((String) -> Unit)? = null,
     showCoverArt: Boolean = true,
@@ -154,11 +155,20 @@ fun SongRow(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (showArtist) {
-                        ClickableArtistText(
-                            artists = song.artists,
-                            fallback = song.artist.ifBlank { "Unknown artist" },
-                            onArtistClick = onArtistClick,
-                        )
+                        if (onArtistClick != null) {
+                            ClickableArtistText(
+                                artists = song.artists,
+                                fallback = song.artist.ifBlank { "Unknown artist" },
+                                onArtistClick = onArtistClick,
+                            )
+                        } else {
+                            Text(
+                                text = song.artists.joinToString(", ") { it.name }.ifBlank { song.artist.ifBlank { "Unknown artist" } },
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                     if (showAlbum && song.album.isNotEmpty()) {
                         if (showArtist) {

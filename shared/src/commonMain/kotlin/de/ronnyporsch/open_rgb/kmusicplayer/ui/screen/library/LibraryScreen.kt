@@ -42,6 +42,8 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     var draggingSong by remember { mutableStateOf<Song?>(null) }
+    // On mobile the sidebar fills the whole screen, edge to edge
+    val isMobile = remember { getPlatform().isMobile }
 
     if (showCreatePlaylistDialog) {
         AlertDialog(
@@ -82,14 +84,14 @@ fun LibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp),
+            .padding(if (isMobile) 0.dp else 16.dp),
     ) {
         if (state.isOffline) {
             Text(
                 text = "Can't reach the server. Showing the playlists stored on this device.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SpotifyLightGray,
-                modifier = Modifier.padding(bottom = 16.dp),
+                modifier = if (isMobile) Modifier.padding(16.dp) else Modifier.padding(bottom = 16.dp),
             )
         }
 
@@ -223,15 +225,17 @@ private fun LibrarySidebar(
     openItemScreens: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    // Shown alone (mobile), the sidebar is the whole screen and shouldn't stand out from it
+    val containerColor = if (openItemScreens) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceVariant
     Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = containerColor,
         shape = RoundedCornerShape(0.dp),
     ) {
         Column(Modifier.fillMaxSize()) {
             TabRow(
                 selectedTabIndex = state.selectedSidebarTab.ordinal,
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                containerColor = containerColor,
                 contentColor = MaterialTheme.colorScheme.onBackground,
             ) {
                 LibrarySidebarTab.entries.forEach { tab ->
@@ -1398,7 +1402,6 @@ private fun PlaylistDetailPane(
                                 isPlaying = isPlaying(song.id),
                                 onArtistClick = onArtistClick,
                                 onAlbumClick = onAlbumClick,
-                                showAlbum = true
                             )
                         }
                     }

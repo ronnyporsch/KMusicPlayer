@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
@@ -38,6 +39,7 @@ fun PlaylistDetailScreen(
     currentSongId: String? = null,
 ) {
     val state by viewModel.state.collectAsState()
+    val isMobile = remember { getPlatform().isMobile }
     val coverArt = LocalCoverArtUrlProvider.current
     val listState = rememberLazyListState()
     val headerState = rememberCollapsingHeaderState(listState)
@@ -152,7 +154,8 @@ fun PlaylistDetailScreen(
                     SongRow(
                         song = song,
                         index = index,
-                        onArtistClick = { name -> viewModel.onEvent(PlaylistDetailEvent.ArtistClicked(name)) },
+                        // Taps on mobile play the song; artist links would be too easy to hit by accident
+                        onArtistClick = if (isMobile) null else { name -> viewModel.onEvent(PlaylistDetailEvent.ArtistClicked(name)) },
                         onAlbumClick = { albumId -> viewModel.onEvent(PlaylistDetailEvent.AlbumClicked(albumId)) },
                         onSongClick = { viewModel.onEvent(PlaylistDetailEvent.SongClicked(song, index)) },
                         onSongDoubleClick = { viewModel.onEvent(PlaylistDetailEvent.SongDoubleClicked(song, index)) },
@@ -160,7 +163,6 @@ fun PlaylistDetailScreen(
                         contextMenuSongs = { playlist.songs.contextMenuSongs(song, state.selectedSongIds) },
                         isSelected = song.id in state.selectedSongIds,
                         isPlaying = currentSongId == song.id,
-                        showAlbum = true
                     )
                 }
             }
