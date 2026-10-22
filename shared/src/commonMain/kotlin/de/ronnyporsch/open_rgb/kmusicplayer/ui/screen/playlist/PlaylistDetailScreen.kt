@@ -22,6 +22,11 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CollapsingTopBar
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeader
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderTitle
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
@@ -35,22 +40,19 @@ fun PlaylistDetailScreen(
     val state by viewModel.state.collectAsState()
     val coverArt = LocalCoverArtUrlProvider.current
     val listState = rememberLazyListState()
+    val headerState = rememberCollapsingHeaderState(listState)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) {
-                Text("\u2190", fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
-            }
-        }
+        CollapsingTopBar(
+            onBack = onBack,
+            state = headerState,
+            title = state.playlist?.name.orEmpty(),
+            image = { modifier -> CoverArtImage(url = coverArt.getUrl(state.playlist?.coverArtId), modifier = modifier) },
+        )
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -88,12 +90,13 @@ fun PlaylistDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .collapsingHeader(headerState)
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         CoverArtImage(
                             url = coverArt.getUrl(playlist.coverArtId),
-                            modifier = Modifier.size(200.dp),
+                            modifier = Modifier.size(200.dp).collapsingHeaderImage(headerState),
                             placeholderFontSize = 60.sp,
                         )
 
@@ -103,6 +106,7 @@ fun PlaylistDetailScreen(
                             text = playlist.name,
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
+                            modifier = Modifier.collapsingHeaderTitle(headerState),
                         )
 
                         Text(

@@ -21,6 +21,12 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CollapsingHeaderState
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CollapsingTopBar
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeader
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderImage
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderTitle
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ExpandableText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
@@ -34,22 +40,22 @@ fun ArtistAlbumsScreen(
     currentSongId: String? = null,
 ) {
     val state by viewModel.state.collectAsState()
+    val gridState = rememberLazyGridState()
+    val headerState = rememberCollapsingHeaderState(gridState)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) {
-                Text("\u2190", fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
-            }
-        }
+        CollapsingTopBar(
+            onBack = onBack,
+            state = headerState,
+            title = state.artistName,
+            image = { modifier ->
+                ArtistImage(url = state.largeImageUrl, artistName = state.artistName, modifier = modifier)
+            },
+        )
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -57,6 +63,7 @@ fun ArtistAlbumsScreen(
             }
         } else {
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Adaptive(minSize = 160.dp),
                 contentPadding = PaddingValues(bottom = 100.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -87,6 +94,7 @@ fun ArtistAlbumsScreen(
                         artistName = state.artistName,
                         imageUrl = state.largeImageUrl,
                         biography = state.biography,
+                        headerState = headerState,
                     )
                 }
 
@@ -200,17 +208,19 @@ private fun ArtistHeader(
     artistName: String,
     imageUrl: String?,
     biography: String?,
+    headerState: CollapsingHeaderState,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .collapsingHeader(headerState)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         ArtistImage(
             url = imageUrl,
             artistName = artistName,
-            modifier = Modifier.size(180.dp),
+            modifier = Modifier.size(180.dp).collapsingHeaderImage(headerState),
         )
 
         Spacer(Modifier.height(16.dp))
@@ -219,6 +229,7 @@ private fun ArtistHeader(
             text = artistName,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.collapsingHeaderTitle(headerState),
         )
 
         if (!biography.isNullOrBlank()) {

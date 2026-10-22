@@ -84,22 +84,14 @@ fun LibraryScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
     ) {
-        Text(
-            text = "Your Library",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-
         if (state.isOffline) {
             Text(
                 text = "Can't reach the server. Showing the playlists stored on this device.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SpotifyLightGray,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(bottom = 16.dp),
             )
         }
-
-        Spacer(Modifier.height(16.dp))
 
         if (draggingSong != null) {
             Surface(
@@ -128,9 +120,8 @@ fun LibraryScreen(
                     }
                 }
             }
+            Spacer(Modifier.height(8.dp))
         }
-
-        Spacer(Modifier.height(16.dp))
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -594,143 +585,153 @@ private fun ArtistDetailPane(
                 )
             }
         } else {
-            LazyVerticalGrid(
-                state = state,
-                columns = GridCells.Adaptive(minSize = 160.dp),
-                contentPadding = PaddingValues(bottom = 100.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown) {
-                        val currentIndex = songs.indexOfFirst { isSelected(it.id) }
-                        when (event.key) {
-                            Key.DirectionDown -> {
-                                if (currentIndex < songs.size - 1) {
-                                    onSongClick(songs[currentIndex + 1], currentIndex + 1)
-                                    true
-                                } else false
+            val headerState = rememberCollapsingHeaderState(state)
+            Box(Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    state = state,
+                    columns = GridCells.Adaptive(minSize = 160.dp),
+                    contentPadding = PaddingValues(bottom = 100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown) {
+                            val currentIndex = songs.indexOfFirst { isSelected(it.id) }
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    if (currentIndex < songs.size - 1) {
+                                        onSongClick(songs[currentIndex + 1], currentIndex + 1)
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionUp -> {
+                                    if (currentIndex > 0) {
+                                        onSongClick(songs[currentIndex - 1], currentIndex - 1)
+                                        true
+                                    } else false
+                                }
+                                else -> false
                             }
-                            Key.DirectionUp -> {
-                                if (currentIndex > 0) {
-                                    onSongClick(songs[currentIndex - 1], currentIndex - 1)
-                                    true
-                                } else false
-                            }
-                            else -> false
-                        }
-                    } else false
-                }
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    ArtistHeader(
-                        artistName = artist.name,
-                        imageUrl = largeImageUrl,
-                        biography = biography,
-                    )
-                }
-
-                if (albums.isNotEmpty()) {
+                        } else false
+                    }
+                ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = "Albums",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        ArtistHeader(
+                            artistName = artist.name,
+                            imageUrl = largeImageUrl,
+                            biography = biography,
+                            headerState = headerState,
                         )
                     }
 
-                    items(albums, key = { it.id }) { album ->
-                        AlbumCard(album) { onAlbumClick(album) }
-                    }
-                }
+                    if (albums.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text(
+                                text = "Albums",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            )
+                        }
 
-                if (appearsOnAlbums.isNotEmpty()) {
+                        items(albums, key = { it.id }) { album ->
+                            AlbumCard(album) { onAlbumClick(album) }
+                        }
+                    }
+
+                    if (appearsOnAlbums.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text(
+                                text = "Appears on",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                            )
+                        }
+
+                        items(appearsOnAlbums, key = { it.id }) { album ->
+                            AlbumCard(album) { onAlbumClick(album) }
+                        }
+                    }
+
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
-                            text = "Appears on",
+                            text = "Songs",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
                         )
                     }
 
-                    items(appearsOnAlbums, key = { it.id }) { album ->
-                        AlbumCard(album) { onAlbumClick(album) }
-                    }
-                }
-
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = "Songs",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                    )
-                }
-
-                if (isSongsLoading) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(color = SpotifyGreen, modifier = Modifier.size(24.dp))
-                        }
-                    }
-                } else if (songs.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Button(
-                                onClick = onPlayAll,
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                                shape = RoundedCornerShape(0.dp),
+                    if (isSongsLoading) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Text("\u25B6  Play All", fontWeight = FontWeight.Bold)
-                            }
-
-                            OutlinedButton(
-                                onClick = onShuffle,
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                shape = RoundedCornerShape(0.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
-                            ) {
-                                Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                                CircularProgressIndicator(color = SpotifyGreen, modifier = Modifier.size(24.dp))
                             }
                         }
-                    }
+                    } else if (songs.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Button(
+                                    onClick = onPlayAll,
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                    shape = RoundedCornerShape(0.dp),
+                                ) {
+                                    Text("\u25B6  Play All", fontWeight = FontWeight.Bold)
+                                }
 
-                    itemsIndexed(
-                        songs,
-                        key = { _, song -> song.id },
-                        span = { _, _ -> GridItemSpan(maxLineSpan) },
-                    ) { index, song ->
-                        SongRow(
-                            song = song,
-                            index = index,
-                            onSongClick = { onSongClick(song, index) },
-                            onSongDoubleClick = { onSongDoubleClick(song, index) },
-                            onDragStart = onDragStart,
-                            onDragEnd = onDragEnd,
-                            onSongCtrlClick = { onSongCtrlClick(song) },
-                            contextMenuSongs = { contextMenuSongs(songs, song) },
-                            isSelected = isSelected(song.id),
-                            isPlaying = isPlaying(song.id),
-                            onArtistClick = { /* Already in artist view */ },
-                            onAlbumClick = { albumId ->
-                                val album = albums.find { it.id == albumId } ?: appearsOnAlbums.find { it.id == albumId }
-                                if (album != null) onAlbumClick(album) else onSongAlbumClick(albumId)
-                            },
-                            showAlbum = true,
-                            showArtist = false
-                        )
+                                OutlinedButton(
+                                    onClick = onShuffle,
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    shape = RoundedCornerShape(0.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                                ) {
+                                    Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        itemsIndexed(
+                            songs,
+                            key = { _, song -> song.id },
+                            span = { _, _ -> GridItemSpan(maxLineSpan) },
+                        ) { index, song ->
+                            SongRow(
+                                song = song,
+                                index = index,
+                                onSongClick = { onSongClick(song, index) },
+                                onSongDoubleClick = { onSongDoubleClick(song, index) },
+                                onDragStart = onDragStart,
+                                onDragEnd = onDragEnd,
+                                onSongCtrlClick = { onSongCtrlClick(song) },
+                                contextMenuSongs = { contextMenuSongs(songs, song) },
+                                isSelected = isSelected(song.id),
+                                isPlaying = isPlaying(song.id),
+                                onArtistClick = { /* Already in artist view */ },
+                                onAlbumClick = { albumId ->
+                                    val album = albums.find { it.id == albumId } ?: appearsOnAlbums.find { it.id == albumId }
+                                    if (album != null) onAlbumClick(album) else onSongAlbumClick(albumId)
+                                },
+                                showAlbum = true,
+                                showArtist = false
+                            )
+                        }
                     }
                 }
+
+                CollapsedHeaderOverlay(
+                    state = headerState,
+                    title = artist.name,
+                    image = { modifier -> ArtistImage(url = largeImageUrl, artistName = artist.name, modifier = modifier) },
+                )
             }
         }
     }
@@ -862,118 +863,129 @@ private fun AlbumDetailPane(
                 )
             }
         } else {
-            LazyColumn(
-                state = state,
-                contentPadding = PaddingValues(bottom = 100.dp),
-                modifier = Modifier.onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown) {
-                        val currentIndex = album.songs.indexOfFirst { isSelected(it.id) }
-                        when (event.key) {
-                            Key.DirectionDown -> {
-                                if (currentIndex < album.songs.size - 1) {
-                                    onSongClick(album.songs[currentIndex + 1], currentIndex + 1)
-                                    true
-                                } else false
+            val headerState = rememberCollapsingHeaderState(state)
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = state,
+                    contentPadding = PaddingValues(bottom = 100.dp),
+                    modifier = Modifier.onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown) {
+                            val currentIndex = album.songs.indexOfFirst { isSelected(it.id) }
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    if (currentIndex < album.songs.size - 1) {
+                                        onSongClick(album.songs[currentIndex + 1], currentIndex + 1)
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionUp -> {
+                                    if (currentIndex > 0) {
+                                        onSongClick(album.songs[currentIndex - 1], currentIndex - 1)
+                                        true
+                                    } else false
+                                }
+                                else -> false
                             }
-                            Key.DirectionUp -> {
-                                if (currentIndex > 0) {
-                                    onSongClick(album.songs[currentIndex - 1], currentIndex - 1)
-                                    true
-                                } else false
+                        } else false
+                    }
+                ) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .collapsingHeader(headerState)
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            CoverArtImage(
+                                url = coverArt.getUrl(album.coverArtId),
+                                modifier = Modifier.size(200.dp).collapsingHeaderImage(headerState),
+                                placeholderFontSize = 60.sp,
+                            )
+
+                            Spacer(Modifier.height(16.dp))
+
+                            Text(
+                                text = album.name,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.collapsingHeaderTitle(headerState),
+                            )
+
+                            ClickableArtistText(
+                                artists = album.artists,
+                                fallback = album.artist.ifBlank { "Unknown artist" },
+                                onArtistClick = onArtistClick,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+
+                            val albumInfo = buildString {
+                                append("Album")
+                                if (album.year != null) {
+                                    append(" \u2022 ")
+                                    append(album.year)
+                                }
+                                if (album.songCount > 0) {
+                                    append(" \u2022 ")
+                                    append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
+                                }
                             }
-                            else -> false
+                            Text(
+                                text = albumInfo,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
-                    } else false
-                }
-            ) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        CoverArtImage(
-                            url = coverArt.getUrl(album.coverArtId),
-                            modifier = Modifier.size(200.dp),
-                            placeholderFontSize = 60.sp,
-                        )
+                    }
 
-                        Spacer(Modifier.height(16.dp))
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Button(
+                                onClick = onPlayAll,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                shape = RoundedCornerShape(0.dp),
+                            ) {
+                                Text("\u25B6  Play", fontWeight = FontWeight.Bold)
+                            }
 
-                        Text(
-                            text = album.name,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
+                            OutlinedButton(
+                                onClick = onShuffle,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(0.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                            ) {
+                                Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
 
-                        ClickableArtistText(
-                            artists = album.artists,
-                            fallback = album.artist.ifBlank { "Unknown artist" },
+                    itemsIndexed(album.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
+                        SongRow(
+                            song = song,
+                            index = index,
                             onArtistClick = onArtistClick,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-
-                        val albumInfo = buildString {
-                            append("Album")
-                            if (album.year != null) {
-                                append(" \u2022 ")
-                                append(album.year)
-                            }
-                            if (album.songCount > 0) {
-                                append(" \u2022 ")
-                                append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
-                            }
-                        }
-                        Text(
-                            text = albumInfo,
-                            style = MaterialTheme.typography.bodySmall,
+                            onSongClick = { onSongClick(song, index) },
+                            onSongDoubleClick = { onSongDoubleClick(song, index) },
+                            onDragStart = onDragStart,
+                            onDragEnd = onDragEnd,
+                            onSongCtrlClick = { onSongCtrlClick(song) },
+                            contextMenuSongs = { contextMenuSongs(album.songs, song) },
+                            isSelected = isSelected(song.id),
+                            isPlaying = isPlaying(song.id),
                         )
                     }
                 }
 
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Button(
-                            onClick = onPlayAll,
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                            shape = RoundedCornerShape(0.dp),
-                        ) {
-                            Text("\u25B6  Play", fontWeight = FontWeight.Bold)
-                        }
-
-                        OutlinedButton(
-                            onClick = onShuffle,
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            shape = RoundedCornerShape(0.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
-                        ) {
-                            Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                itemsIndexed(album.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
-                    SongRow(
-                        song = song,
-                        index = index,
-                        onArtistClick = onArtistClick,
-                        onSongClick = { onSongClick(song, index) },
-                        onSongDoubleClick = { onSongDoubleClick(song, index) },
-                        onDragStart = onDragStart,
-                        onDragEnd = onDragEnd,
-                        onSongCtrlClick = { onSongCtrlClick(song) },
-                        contextMenuSongs = { contextMenuSongs(album.songs, song) },
-                        isSelected = isSelected(song.id),
-                        isPlaying = isPlaying(song.id),
-                    )
-                }
+                CollapsedHeaderOverlay(
+                    state = headerState,
+                    title = album.name,
+                    image = { modifier -> CoverArtImage(url = coverArt.getUrl(album.coverArtId), modifier = modifier) },
+                )
             }
         }
     }
@@ -984,17 +996,19 @@ private fun ArtistHeader(
     artistName: String,
     imageUrl: String?,
     biography: String?,
+    headerState: CollapsingHeaderState,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .collapsingHeader(headerState)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         ArtistImage(
             url = imageUrl,
             artistName = artistName,
-            modifier = Modifier.size(180.dp),
+            modifier = Modifier.size(180.dp).collapsingHeaderImage(headerState),
         )
 
         Spacer(Modifier.height(16.dp))
@@ -1003,6 +1017,7 @@ private fun ArtistHeader(
             text = artistName,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.collapsingHeaderTitle(headerState),
         )
 
         if (!biography.isNullOrBlank()) {
@@ -1280,108 +1295,119 @@ private fun PlaylistDetailPane(
             }
 
             else -> {
-                LazyColumn(
-                    state = state,
-                    contentPadding = PaddingValues(bottom = 100.dp),
-                    modifier = Modifier.onKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown) {
-                            val currentIndex = playlist.songs.indexOfFirst { isSelected(it.id) }
-                            when (event.key) {
-                                Key.DirectionDown -> {
-                                    if (currentIndex < playlist.songs.size - 1) {
-                                        onSongClick(playlist.songs[currentIndex + 1], currentIndex + 1)
-                                        true
-                                    } else false
+                val headerState = rememberCollapsingHeaderState(state)
+                Box(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = state,
+                        contentPadding = PaddingValues(bottom = 100.dp),
+                        modifier = Modifier.onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown) {
+                                val currentIndex = playlist.songs.indexOfFirst { isSelected(it.id) }
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        if (currentIndex < playlist.songs.size - 1) {
+                                            onSongClick(playlist.songs[currentIndex + 1], currentIndex + 1)
+                                            true
+                                        } else false
+                                    }
+                                    Key.DirectionUp -> {
+                                        if (currentIndex > 0) {
+                                            onSongClick(playlist.songs[currentIndex - 1], currentIndex - 1)
+                                            true
+                                        } else false
+                                    }
+                                    else -> false
                                 }
-                                Key.DirectionUp -> {
-                                    if (currentIndex > 0) {
-                                        onSongClick(playlist.songs[currentIndex - 1], currentIndex - 1)
-                                        true
-                                    } else false
-                                }
-                                else -> false
+                            } else false
+                        }
+                    ) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .collapsingHeader(headerState)
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                CoverArtImage(
+                                    url = coverArt.getUrl(playlist.coverArtId),
+                                    modifier = Modifier.size(200.dp).collapsingHeaderImage(headerState),
+                                    placeholderFontSize = 60.sp,
+                                )
+
+                                Spacer(Modifier.height(16.dp))
+
+                                Text(
+                                    text = playlist.name,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.collapsingHeaderTitle(headerState),
+                                )
+
+                                Text(
+                                    text = "Playlist",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+
+                                Text(
+                                    text = "${playlist.songCount} songs",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             }
-                        } else false
-                    }
-                ) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            CoverArtImage(
-                                url = coverArt.getUrl(playlist.coverArtId),
-                                modifier = Modifier.size(200.dp),
-                                placeholderFontSize = 60.sp,
-                            )
+                        }
 
-                            Spacer(Modifier.height(16.dp))
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Button(
+                                    onClick = onPlayAll,
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                    shape = RoundedCornerShape(0.dp),
+                                ) {
+                                    Text("\u25B6  Play", fontWeight = FontWeight.Bold)
+                                }
 
-                            Text(
-                                text = playlist.name,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
+                                OutlinedButton(
+                                    onClick = onShuffle,
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    shape = RoundedCornerShape(0.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                                ) {
+                                    Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
 
-                            Text(
-                                text = "Playlist",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-
-                            Text(
-                                text = "${playlist.songCount} songs",
-                                style = MaterialTheme.typography.bodySmall,
+                        itemsIndexed(playlist.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
+                            SongRow(
+                                song = song,
+                                index = index,
+                                onSongClick = { onSongClick(song, index) },
+                                onSongDoubleClick = { onSongDoubleClick(song, index) },
+                                onRemoveClick = { onRemoveClick(song, index) },
+                                onDragStart = onDragStart,
+                                onDragEnd = onDragEnd,
+                                onSongCtrlClick = { onSongCtrlClick(song) },
+                                contextMenuSongs = { contextMenuSongs(playlist.songs, song) },
+                                isSelected = isSelected(song.id),
+                                isPlaying = isPlaying(song.id),
+                                onArtistClick = onArtistClick,
+                                onAlbumClick = onAlbumClick,
+                                showAlbum = true
                             )
                         }
                     }
 
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Button(
-                                onClick = onPlayAll,
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                                shape = RoundedCornerShape(0.dp),
-                            ) {
-                                Text("\u25B6  Play", fontWeight = FontWeight.Bold)
-                            }
-
-                            OutlinedButton(
-                                onClick = onShuffle,
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                shape = RoundedCornerShape(0.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
-                            ) {
-                                Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    itemsIndexed(playlist.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
-                        SongRow(
-                            song = song,
-                            index = index,
-                            onSongClick = { onSongClick(song, index) },
-                            onSongDoubleClick = { onSongDoubleClick(song, index) },
-                            onRemoveClick = { onRemoveClick(song, index) },
-                            onDragStart = onDragStart,
-                            onDragEnd = onDragEnd,
-                            onSongCtrlClick = { onSongCtrlClick(song) },
-                            contextMenuSongs = { contextMenuSongs(playlist.songs, song) },
-                            isSelected = isSelected(song.id),
-                            isPlaying = isPlaying(song.id),
-                            onArtistClick = onArtistClick,
-                            onAlbumClick = onAlbumClick,
-                            showAlbum = true
-                        )
-                    }
+                    CollapsedHeaderOverlay(
+                        state = headerState,
+                        title = playlist.name,
+                        image = { modifier -> CoverArtImage(url = coverArt.getUrl(playlist.coverArtId), modifier = modifier) },
+                    )
                 }
             }
         }
