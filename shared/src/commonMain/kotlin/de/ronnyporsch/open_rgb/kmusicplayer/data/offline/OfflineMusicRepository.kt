@@ -45,8 +45,8 @@ class OfflineMusicRepository(
     override suspend fun addSongsToPlaylist(playlistId: String, songIds: List<String>): Result<Unit> =
         server.addSongsToPlaylist(playlistId, songIds).onSuccess { changed(playlistId) }
 
-    override suspend fun removeSongFromPlaylist(playlistId: String, songIndex: Int): Result<Unit> =
-        server.removeSongFromPlaylist(playlistId, songIndex).onSuccess { changed(playlistId) }
+    override suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>): Result<Unit> =
+        server.removeSongsFromPlaylist(playlistId, songIndices).onSuccess { changed(playlistId) }
 
     override fun getStreamUrl(songId: String): String = files?.uriOf(songId) ?: server.getStreamUrl(songId)
 

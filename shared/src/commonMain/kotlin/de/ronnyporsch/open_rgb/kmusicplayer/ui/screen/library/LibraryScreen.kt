@@ -384,11 +384,12 @@ private fun LibraryDetailPane(
             isOffline = state.isOffline,
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
-            onRemoveClick = { song, index ->
+            onRemoveClick = { indices ->
                 state.selectedPlaylist?.let {
-                    viewModel.onEvent(LibraryEvent.RemoveSongFromPlaylist(it, index))
+                    viewModel.onEvent(LibraryEvent.RemoveSongsFromPlaylist(it, indices))
                 }
             },
+            contextMenuIndices = { songs, index -> songs.contextMenuIndices(index, state.selectedSongIds) },
             isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
@@ -1021,7 +1022,7 @@ private fun PlaylistDetailPane(
     isOffline: Boolean = false,
     onSongClick: (Song, Int) -> Unit,
     onSongDoubleClick: (Song, Int) -> Unit,
-    onRemoveClick: (Song, Int) -> Unit,
+    onRemoveClick: (indices: List<Int>) -> Unit,
     isSelected: (String) -> Boolean,
     isPlaying: (String) -> Boolean,
     onArtistClick: (String) -> Unit,
@@ -1032,6 +1033,7 @@ private fun PlaylistDetailPane(
     modifier: Modifier = Modifier,
     onSongCtrlClick: (Song) -> Unit = {},
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
+    contextMenuIndices: (List<Song>, Int) -> List<Int> = { _, index -> listOf(index) },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
 
@@ -1152,9 +1154,10 @@ private fun PlaylistDetailPane(
                                 index = index,
                                 onSongClick = { onSongClick(song, index) },
                                 onSongDoubleClick = { onSongDoubleClick(song, index) },
-                                onRemoveClick = { onRemoveClick(song, index) },
+                                onRemoveClick = { onRemoveClick(listOf(index)) },
                                 onSongCtrlClick = { onSongCtrlClick(song) },
                                 contextMenuSongs = { contextMenuSongs(playlist.songs, song) },
+                                onRemoveFromPlaylist = { onRemoveClick(contextMenuIndices(playlist.songs, index)) },
                                 isSelected = isSelected(song.id),
                                 isPlaying = isPlaying(song.id),
                                 onArtistClick = onArtistClick,

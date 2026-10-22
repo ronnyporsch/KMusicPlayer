@@ -32,7 +32,8 @@ interface MusicRepository {
     suspend fun getPlaylist(playlistId: String): Result<Playlist>
     suspend fun createPlaylist(name: String, songIds: List<String> = emptyList()): Result<Playlist>
     suspend fun addSongsToPlaylist(playlistId: String, songIds: List<String>): Result<Unit>
-    suspend fun removeSongFromPlaylist(playlistId: String, songIndex: Int): Result<Unit>
+    /** Removes the entries at [songIndices] (positions in the playlist, not song ids, as a song can be in it more than once). */
+    suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>): Result<Unit>
     suspend fun findArtistByName(name: String): Result<Artist?>
     suspend fun findSongsByArtistName(name: String): Result<List<Song>>
 
@@ -149,8 +150,8 @@ class MusicRepositoryImpl(
         if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error adding song to playlist")
     }
 
-    override suspend fun removeSongFromPlaylist(playlistId: String, songIndex: Int): Result<Unit> = runCatching {
-        val response = api.updatePlaylist(playlistId, songIndicesToRemove = listOf(songIndex))
+    override suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>): Result<Unit> = runCatching {
+        val response = api.updatePlaylist(playlistId, songIndicesToRemove = songIndices)
         val body = response.subsonicResponse
         if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error removing song from playlist")
     }

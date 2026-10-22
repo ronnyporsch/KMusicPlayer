@@ -67,12 +67,14 @@ fun SongRow(
     onSongCtrlClick: (() -> Unit)? = null,
     /** The songs the context menu acts on, see [contextMenuSongs]. */
     contextMenuSongs: () -> List<Song> = { listOf(song) },
+    /** Adds "Remove from playlist" to the context menu; removes the songs the menu acts on. */
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     val platform = getPlatform()
     val density = LocalDensity.current
 
-    val hasContextMenu = LocalPlaylistEditor.current != null || LocalAddToQueue.current != null
+    val hasContextMenu = LocalPlaylistEditor.current != null || LocalAddToQueue.current != null || onRemoveFromPlaylist != null
     // YouTube Music results aren't in the library, so they can't be dropped onto playlists
     val isDraggable = LocalPlaylistEditor.current != null && !song.isYouTube
     var menuSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -229,6 +231,7 @@ fun SongRow(
             onDismiss = { menuSongs = null },
             songs = menuSongs.orEmpty(),
             offset = with(density) { DpOffset(pressPosition.x.toDp(), (pressPosition.y - rowHeight).toDp()) },
+            onRemoveFromPlaylist = onRemoveFromPlaylist,
         )
     }
 }

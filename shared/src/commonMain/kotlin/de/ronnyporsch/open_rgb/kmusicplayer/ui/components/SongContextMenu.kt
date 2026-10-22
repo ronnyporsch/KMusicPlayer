@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -27,7 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Adds songs to playlists from the song context menu, on any screen. Reports the outcome to [onMessage]. */
+/** Adds songs to playlists from the song context menu (and drag and drop), on any screen. Reports the outcome to [onMessage]. */
 class PlaylistEditor(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
@@ -40,37 +41,29 @@ class PlaylistEditor(
         scope.launch { repository.getPlaylists().onSuccess { _playlists.value = it } }
     }
 
-    private val _duplicateConfirmation = MutableStateFlow<DuplicateConfirmation?>(null)
-    /** Songs that are already in the playlist they're being added to, waiting for the user to decide. */
-    val duplicateConfirmation: StateFlow<DuplicateConfirmation?> = _duplicateConfirmation.asStateFlow()
-
-    /** Adds [songs], but asks first if some of them are in the playlist already. */
+    /** Adds [songs] that aren't in the playlist yet; a playlist never contains a song twice. */
     fun addToPlaylist(playlist: Playlist, songs: List<Song>) {
         scope.launch {
             // If the playlist can't be loaded, add anyway rather than not at all
             val existingIds = repository.getPlaylist(playlist.id).getOrNull()?.songs.orEmpty().map { it.id }.toSet()
-            val duplicates = songs.filter { it.id in existingIds }
-            if (duplicates.isEmpty()) add(playlist, songs)
-            else _duplicateConfirmation.value = DuplicateConfirmation(playlist, songs, duplicates)
+            val (duplicates, new) = songs.distinctBy { it.id }.partition { it.id in existingIds }
+            if (new.isEmpty()) {
+                val what = duplicates.singleOrNull()?.let { "\"${it.title}\" is" } ?: "These songs are"
+                onMessage("$what already in \"${playlist.name}\"")
+                return@launch
+            }
+            repository.addSongsToPlaylist(playlist.id, new.map { it.id })
+                .onSuccess {
+                    val skipped = if (duplicates.isEmpty()) "" else " (${duplicates.describe()} already in it)"
+                    onMessage("Added ${new.describe()} to \"${playlist.name}\"$skipped")
+                }
+                .onFailure { onMessage("Couldn't add to \"${playlist.name}\": ${it.message}") }
         }
-    }
-
-    /** Answers [duplicateConfirmation]: without [addDuplicates] only the songs not in the playlist yet get added. */
-    fun confirmDuplicates(addDuplicates: Boolean) {
-        val confirmation = _duplicateConfirmation.value ?: return
-        _duplicateConfirmation.value = null
-        val songs = if (addDuplicates) confirmation.songs else confirmation.songs - confirmation.duplicates.toSet()
-        if (songs.isNotEmpty()) scope.launch { add(confirmation.playlist, songs) }
-    }
-
-    private suspend fun add(playlist: Playlist, songs: List<Song>) {
-        repository.addSongsToPlaylist(playlist.id, songs.map { it.id })
-            .onSuccess { onMessage("Added ${songs.describe()} to \"${playlist.name}\"") }
-            .onFailure { onMessage("Couldn't add to \"${playlist.name}\": ${it.message}") }
     }
 
     fun createPlaylist(name: String, songs: List<Song>) {
         scope.launch {
+            val songs = songs.distinctBy { it.id }
             repository.createPlaylist(name, songs.map { it.id })
                 .onSuccess { onMessage("Created \"$name\" with ${songs.describe()}") }
                 .onFailure { onMessage("Couldn't create \"$name\": ${it.message}") }
@@ -78,38 +71,6 @@ class PlaylistEditor(
     }
 
     private fun List<Song>.describe() = singleOrNull()?.let { "\"${it.title}\"" } ?: "$size songs"
-}
-
-data class DuplicateConfirmation(val playlist: Playlist, val songs: List<Song>, val duplicates: List<Song>)
-
-/** Asks whether songs already in a playlist should be added again. "Don't add" is the highlighted default. */
-@Composable
-fun DuplicateSongsDialog(editor: PlaylistEditor) {
-    val confirmation = editor.duplicateConfirmation.collectAsState().value ?: return
-    val allDuplicates = confirmation.duplicates.size == confirmation.songs.size
-    val what = confirmation.duplicates.singleOrNull()?.let { "\"${it.title}\" is" }
-        ?: "${confirmation.duplicates.size} of these songs are"
-    AlertDialog(
-        onDismissRequest = { editor.confirmDuplicates(addDuplicates = false) },
-        title = { Text("Already in playlist") },
-        text = {
-            Text(
-                "$what already in \"${confirmation.playlist.name}\". Add ${if (confirmation.duplicates.size == 1) "it" else "them"} again?" +
-                    if (allDuplicates) "" else "\n\nWith \"Don't add\", only the other songs get added."
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { editor.confirmDuplicates(addDuplicates = false) },
-                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-            ) {
-                Text("Don't add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { editor.confirmDuplicates(addDuplicates = true) }) { Text("Add anyway") }
-        },
-    )
 }
 
 val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }
@@ -123,6 +84,10 @@ fun Set<String>.toggled(songId: String): Set<String> = if (songId in this) this 
 fun List<Song>.contextMenuSongs(song: Song, selectedSongIds: Set<String>): List<Song> =
     if (song.id in selectedSongIds) filter { it.id in selectedSongIds }.distinctBy { it.id } else listOf(song)
 
+/** Playlist positions a context menu on the song at [index] acts on: those of the selection if the song is part of it, otherwise only [index]. */
+fun List<Song>.contextMenuIndices(index: Int, selectedSongIds: Set<String>): List<Int> =
+    if (this[index].id in selectedSongIds) indices.filter { this[it].id in selectedSongIds } else listOf(index)
+
 /** Context menu of one or more songs, opened at [offset] relative to the bottom left of the element it belongs to. */
 @Composable
 fun SongContextMenu(
@@ -130,10 +95,12 @@ fun SongContextMenu(
     onDismiss: () -> Unit,
     songs: List<Song>,
     offset: DpOffset,
+    /** Shows "Remove from playlist", for songs listed in a playlist. */
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     val editor = LocalPlaylistEditor.current
     val addToQueue = LocalAddToQueue.current
-    if (editor == null && addToQueue == null) return
+    if (editor == null && addToQueue == null && onRemoveFromPlaylist == null) return
     // YouTube Music results aren't in the library, so they can't be added to playlists
     val canAddToPlaylist = editor != null && songs.none { it.isYouTube }
     var showPlaylists by remember { mutableStateOf(false) }
@@ -193,6 +160,16 @@ fun SongContextMenu(
                     onClick = {
                         editor?.refreshPlaylists()
                         showPlaylists = true
+                    },
+                )
+            }
+            if (onRemoveFromPlaylist != null) {
+                DropdownMenuItem(
+                    text = { Text("Remove from playlist") },
+                    leadingIcon = { Icon(Icons.Default.PlaylistRemove, contentDescription = null) },
+                    onClick = {
+                        onRemoveFromPlaylist()
+                        onDismiss()
                     },
                 )
             }

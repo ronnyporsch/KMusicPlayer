@@ -47,7 +47,6 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.KMusicPlayerTheme
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsScreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalFavorites
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.DuplicateSongsDialog
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalAddToQueue
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDragAndDrop
@@ -465,7 +464,6 @@ fun App() {
             }
         }
         songDragAndDrop?.let { SongDragOverlay(it) }
-        DuplicateSongsDialog(playlistEditor)
         }
         }
     }

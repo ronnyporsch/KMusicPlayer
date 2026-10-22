@@ -15,6 +15,8 @@ sealed class PlaylistDetailEvent {
     data class SongDoubleClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
     data class SongSelectionToggled(val song: Song) : PlaylistDetailEvent()
+    /** Removes the entries at [indices] (positions in the playlist) from it. */
+    data class RemoveSongs(val indices: List<Int>) : PlaylistDetailEvent()
     data object PlayAll : PlaylistDetailEvent()
     data object ShuffleAll : PlaylistDetailEvent()
     data class ArtistClicked(val artistName: String) : PlaylistDetailEvent()

@@ -235,8 +235,10 @@ class LibraryViewModel(
             }
             // The playlists get reloaded through playlistChanges
             is LibraryEvent.CreatePlaylist -> launch { repository.createPlaylist(event.name) }
-            is LibraryEvent.RemoveSongFromPlaylist ->
-                launch { repository.removeSongFromPlaylist(event.playlist.id, event.index) }
+            is LibraryEvent.RemoveSongsFromPlaylist -> launch {
+                repository.removeSongsFromPlaylist(event.playlist.id, event.indices)
+                    .onSuccess { setState { copy(selectedSongIds = emptySet()) } }
+            }
             is LibraryEvent.PlayAllPlaylistSongs -> {
                 val songs = currentState.selectedPlaylist?.songs.orEmpty()
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))

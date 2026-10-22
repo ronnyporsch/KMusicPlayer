@@ -31,6 +31,14 @@ class PlaylistDetailViewModel(
                 val songs = currentState.playlist?.songs ?: return
                 emitEffect(PlaylistDetailEffect.PlaySongs(songs, event.index))
             }
+            is PlaylistDetailEvent.RemoveSongs -> launch {
+                repository.removeSongsFromPlaylist(playlistId, event.indices)
+                    .onSuccess {
+                        setState { copy(selectedSongIds = emptySet()) }
+                        // Reload in the background to keep the list and its scroll position
+                        loadPlaylist(showLoading = false)
+                    }
+            }
             is PlaylistDetailEvent.PlayAll -> {
                 val songs = currentState.playlist?.songs ?: return
                 emitEffect(PlaylistDetailEffect.PlaySongs(songs, 0))
@@ -48,8 +56,8 @@ class PlaylistDetailViewModel(
         }
     }
 
-    private fun loadPlaylist() {
-        setState { copy(isLoading = true) }
+    private fun loadPlaylist(showLoading: Boolean = true) {
+        if (showLoading) setState { copy(isLoading = true) }
         launch {
             repository.getPlaylist(playlistId)
                 .onSuccess { setState { copy(playlist = it, isLoading = false) } }

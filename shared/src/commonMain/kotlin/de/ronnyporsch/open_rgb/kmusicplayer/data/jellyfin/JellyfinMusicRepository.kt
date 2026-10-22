@@ -84,11 +84,13 @@ class JellyfinMusicRepository(
         api.addToPlaylist(playlistId, songIds)
     }
 
-    override suspend fun removeSongFromPlaylist(playlistId: String, songIndex: Int): Result<Unit> = runCatching {
+    override suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>): Result<Unit> = runCatching {
         // Jellyfin removes entries by their playlist entry id, not their position
-        val entry = api.getPlaylistItems(playlistId).items.getOrNull(songIndex)?.playlistItemId
-            ?: throw IllegalStateException("Song not found in playlist")
-        api.removeFromPlaylist(playlistId, listOf(entry))
+        val items = api.getPlaylistItems(playlistId).items
+        val entries = songIndices.map {
+            items.getOrNull(it)?.playlistItemId ?: throw IllegalStateException("Song not found in playlist")
+        }
+        api.removeFromPlaylist(playlistId, entries)
     }
 
     override suspend fun findArtistByName(name: String): Result<Artist?> = runCatching {

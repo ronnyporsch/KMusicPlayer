@@ -30,6 +30,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderTitle
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuIndices
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 
 @Composable
@@ -161,6 +162,9 @@ fun PlaylistDetailScreen(
                         onSongDoubleClick = { viewModel.onEvent(PlaylistDetailEvent.SongDoubleClicked(song, index)) },
                         onSongCtrlClick = { viewModel.onEvent(PlaylistDetailEvent.SongSelectionToggled(song)) },
                         contextMenuSongs = { playlist.songs.contextMenuSongs(song, state.selectedSongIds) },
+                        onRemoveFromPlaylist = {
+                            viewModel.onEvent(PlaylistDetailEvent.RemoveSongs(playlist.songs.contextMenuIndices(index, state.selectedSongIds)))
+                        },
                         isSelected = song.id in state.selectedSongIds,
                         isPlaying = currentSongId == song.id,
                     )
