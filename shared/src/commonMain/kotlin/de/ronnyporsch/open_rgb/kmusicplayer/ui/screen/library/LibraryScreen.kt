@@ -48,44 +48,12 @@ fun LibraryScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-    var newPlaylistName by remember { mutableStateOf("") }
     var draggingSong by remember { mutableStateOf<Song?>(null) }
     // On mobile the sidebar fills the whole screen, edge to edge
     val isMobile = remember { getPlatform().isMobile }
 
     if (showCreatePlaylistDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreatePlaylistDialog = false },
-            title = { Text("Create New Playlist") },
-            text = {
-                OutlinedTextField(
-                    value = newPlaylistName,
-                    onValueChange = { newPlaylistName = it },
-                    label = { Text("Playlist Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newPlaylistName.isNotBlank()) {
-                            viewModel.onEvent(LibraryEvent.CreatePlaylist(newPlaylistName))
-                            newPlaylistName = ""
-                            showCreatePlaylistDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
-                ) {
-                    Text("Create")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreatePlaylistDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
+        CreatePlaylistDialog(viewModel, onDismiss = { showCreatePlaylistDialog = false })
     }
 
     Column(
@@ -222,6 +190,70 @@ private fun LibrarySplitView(
 }
 
 @Composable
+private fun CreatePlaylistDialog(viewModel: LibraryViewModel, onDismiss: () -> Unit) {
+    var newPlaylistName by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create New Playlist") },
+        text = {
+            OutlinedTextField(
+                value = newPlaylistName,
+                onValueChange = { newPlaylistName = it },
+                label = { Text("Playlist Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (newPlaylistName.isNotBlank()) {
+                        viewModel.onEvent(LibraryEvent.CreatePlaylist(newPlaylistName))
+                        onDismiss()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/**
+ * Desktop: the library sidebar next to screens other than the library, so it is always visible.
+ * Opening an item from it goes back to the library, which shows the item in its detail pane.
+ */
+@Composable
+fun DesktopLibrarySidebar(
+    viewModel: LibraryViewModel,
+    onItemOpened: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state by viewModel.state.collectAsState()
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(viewModel, onDismiss = { showCreatePlaylistDialog = false })
+    }
+    LibrarySidebar(
+        state = state,
+        viewModel = viewModel,
+        onCreatePlaylist = { showCreatePlaylistDialog = true },
+        onDragStart = {},
+        onDragEnd = {},
+        draggingSong = null,
+        onDropSong = { _, _ -> },
+        onItemOpened = onItemOpened,
+        modifier = modifier,
+    )
+}
+
+@Composable
 private fun LibrarySidebar(
     state: LibraryState,
     viewModel: LibraryViewModel,
@@ -231,10 +263,16 @@ private fun LibrarySidebar(
     draggingSong: Song?,
     onDropSong: (Playlist, Song) -> Unit,
     openItemScreens: Boolean = false,
+    /** Called after an item was opened in the detail pane (not with [openItemScreens]). */
+    onItemOpened: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Shown alone (mobile), the sidebar is the whole screen and shouldn't stand out from it
     val containerColor = if (openItemScreens) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceVariant
+    fun open(event: LibraryEvent) {
+        viewModel.onEvent(event)
+        if (!openItemScreens) onItemOpened()
+    }
     Surface(
         modifier = modifier,
         color = containerColor,
@@ -279,10 +317,10 @@ private fun LibrarySidebar(
                     artists = state.artists,
                     selectedArtistId = state.selectedArtistId,
                     onArtistClick = {
-                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
+                        open(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
                     },
                     onArtistDoubleClick = if (openItemScreens) null else {
-                        { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) }
+                        { open(LibraryEvent.ArtistDoubleClicked(it)) }
                     },
                     state = viewModel.artistSidebarState,
                     modifier = Modifier.fillMaxSize(),
@@ -290,19 +328,19 @@ private fun LibrarySidebar(
                 LibrarySidebarTab.Favorites -> FavoritesSidebar(
                     state = state,
                     onSongsClick = {
-                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenFavoriteSongsScreen else LibraryEvent.FavoriteSongsClicked)
+                        open(if (openItemScreens) LibraryEvent.OpenFavoriteSongsScreen else LibraryEvent.FavoriteSongsClicked)
                     },
                     onArtistClick = {
-                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
+                        open(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
                     },
                     onArtistDoubleClick = if (openItemScreens) null else {
-                        { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) }
+                        { open(LibraryEvent.ArtistDoubleClicked(it)) }
                     },
                     onAlbumClick = {
-                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenAlbumScreen(it) else LibraryEvent.AlbumClicked(it))
+                        open(if (openItemScreens) LibraryEvent.OpenAlbumScreen(it) else LibraryEvent.AlbumClicked(it))
                     },
                     onAlbumDoubleClick = if (openItemScreens) null else {
-                        { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) }
+                        { open(LibraryEvent.AlbumDoubleClicked(it)) }
                     },
                     listState = viewModel.favoritesSidebarState,
                     modifier = Modifier.fillMaxSize(),
@@ -311,10 +349,10 @@ private fun LibrarySidebar(
                     playlists = state.playlists,
                     selectedPlaylistId = state.selectedPlaylistId,
                     onPlaylistClick = {
-                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenPlaylistScreen(it) else LibraryEvent.PlaylistClicked(it))
+                        open(if (openItemScreens) LibraryEvent.OpenPlaylistScreen(it) else LibraryEvent.PlaylistClicked(it))
                     },
                     onPlaylistDoubleClick = if (openItemScreens) null else {
-                        { viewModel.onEvent(LibraryEvent.PlaylistDoubleClicked(it)) }
+                        { open(LibraryEvent.PlaylistDoubleClicked(it)) }
                     },
                     onCreatePlaylist = onCreatePlaylist,
                     draggingSong = draggingSong,

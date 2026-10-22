@@ -175,6 +175,7 @@ fun App() {
         val currentScreen by navigator.currentScreen.collectAsState()
         val playerState by playerViewModel.state.collectAsState()
         val hasSong = playerState.playback.currentSong != null
+        val isMobile = remember { getPlatform().isMobile }
 
         // System back (Android back button/gesture) navigates within the app while there is a previous screen.
         // Keyed on currentScreen so this scope recomposes on navigation (the back stack itself isn't observable)
@@ -292,6 +293,21 @@ fun App() {
                         } else false
                     },
             ) {
+            Row(Modifier.fillMaxSize()) {
+                // Desktop: the library has the sidebar built in; every other screen gets it next to it
+                val showSidebar = !isMobile && currentScreen !is Screen.Login &&
+                    currentScreen !is Screen.Library && currentScreen !is Screen.Player
+                if (showSidebar) {
+                    DesktopLibrarySidebar(
+                        viewModel = libraryViewModel,
+                        onItemOpened = { navigator.push(Screen.Library) },
+                        modifier = Modifier
+                            .padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
+                            .width(280.dp)
+                            .fillMaxHeight(),
+                    )
+                }
+            Box(Modifier.weight(1f).fillMaxHeight()) {
                 when (val screen = currentScreen) {
                     is Screen.Login -> {
                         val vm = remember { LoginViewModel(connection, settingsHolder.settings.value) }
@@ -413,6 +429,8 @@ fun App() {
                         SettingsScreen(vm) { navigator.pop() }
                     }
                 }
+            }
+            }
             }
         }
         }
