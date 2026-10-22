@@ -12,6 +12,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class SearchViewModel(
     private val repository: MusicRepository,
@@ -121,10 +123,12 @@ class SearchViewModel(
 
     /** The search API doesn't report codecs/bitrates, so look them up per song and fill them in as they arrive. */
     private suspend fun loadYouTubeStreamInfo(songs: List<Song>) {
+        // Each lookup runs yt-dlp on the server and takes seconds, so don't flood it
+        val permits = Semaphore(3)
         coroutineScope {
             for (song in songs) {
                 launch {
-                    val info = runCatching { youTube.audioStreamInfo(song) }
+                    val info = runCatching { permits.withPermit { youTube.audioStreamInfo(song) } }
                         .onFailure { if (it is CancellationException) throw it }
                         .getOrNull() ?: return@launch
                     setState {

@@ -2,6 +2,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.platform
 
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import java.net.Socket
 import java.security.KeyStore
@@ -23,6 +24,9 @@ val sharedOkHttpClient: OkHttpClient by lazy {
     val defaultHostnameVerifier = OkHttpClient().hostnameVerifier
     val sslContext = SSLContext.getInstance("TLS").apply { init(null, arrayOf(UntrustedHostTrustManager), null) }
     OkHttpClient.Builder()
+        // Everything goes to the one music server; OkHttp's default of 5 per host lets slow requests (e.g. YouTube
+        // stream info, which runs yt-dlp on the server) block unrelated ones like loading the next screen
+        .dispatcher(Dispatcher().apply { maxRequestsPerHost = 32 })
         .sslSocketFactory(sslContext.socketFactory, UntrustedHostTrustManager)
         .hostnameVerifier { hostname, session ->
             hostname.isUntrusted() || defaultHostnameVerifier.verify(hostname, session)
