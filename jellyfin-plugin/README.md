@@ -10,7 +10,9 @@ music library. The plugin searches YouTube Music for the clients; when a client 
 3. saves it as `Album Artist/YYYY - Album/NN Title.opus` (or `.m4a`) into the download folder and
 4. starts a library scan.
 
-It also streams YouTube Music tracks for playback and reports the codec/bitrate a download would get.
+Clients can also search YouTube Music artists and browse their albums, singles and EPs and top songs; album tracks
+are streamed and downloaded like search results. The plugin also streams YouTube Music tracks for playback and
+reports the codec/bitrate a download would get.
 
 Requires Jellyfin 12.2. The plugin ships the standalone [yt-dlp](https://github.com/yt-dlp/yt-dlp) release for
 Linux x64 and arm64 (what the official Docker image runs on) and updates it daily; elsewhere install yt-dlp on the

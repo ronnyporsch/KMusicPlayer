@@ -26,6 +26,7 @@ import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeService
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.youTubeArtistId
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.GlobalShortcuts
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.createHttpClient
@@ -240,7 +241,7 @@ fun App() {
                             MiniPlayer(
                                 viewModel = playerViewModel,
                                 onArtistClick = { name ->
-                                    navigator.push(Screen.ArtistAlbums(null, name))
+                                    navigator.push(Screen.ArtistAlbums(playerState.playback.currentSong?.youTubeArtistId(name), name))
                                 },
                                 onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                                 onClick = { navigator.push(Screen.Player) },
@@ -300,7 +301,7 @@ fun App() {
 
                     is Screen.ArtistAlbums -> {
                         val vm = remember(screen.artistId, screen.artistName) {
-                            ArtistAlbumsViewModel(screen.artistId, screen.artistName, repository)
+                            ArtistAlbumsViewModel(screen.artistId, screen.artistName, repository, youTube)
                         }
                         LaunchedEffect(vm) {
                             vm.effects.collectLatest { effect ->
@@ -321,7 +322,7 @@ fun App() {
 
                     is Screen.AlbumSongs -> {
                         val vm = remember(screen.albumId) {
-                            AlbumDetailViewModel(screen.albumId, repository)
+                            AlbumDetailViewModel(screen.albumId, repository, youTube)
                         }
                         LaunchedEffect(vm) {
                             vm.effects.collectLatest { effect ->
@@ -329,7 +330,7 @@ fun App() {
                                     is AlbumDetailEffect.PlaySongs ->
                                         playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
                                     is AlbumDetailEffect.NavigateToArtist ->
-                                        navigator.push(Screen.ArtistAlbums(null, effect.artistName))
+                                        navigator.push(Screen.ArtistAlbums(effect.artistId, effect.artistName))
                                 }
                             }
                         }
@@ -367,7 +368,7 @@ fun App() {
                         PlayerScreen(
                             viewModel = playerViewModel,
                             onArtistClick = { name ->
-                                navigator.push(Screen.ArtistAlbums(null, name))
+                                navigator.push(Screen.ArtistAlbums(playerState.playback.currentSong?.youTubeArtistId(name), name))
                             },
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                             onBack = { navigator.pop() },

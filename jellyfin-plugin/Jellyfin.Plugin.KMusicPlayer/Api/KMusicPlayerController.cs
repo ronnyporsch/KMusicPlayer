@@ -75,6 +75,65 @@ public class KMusicPlayerController : ControllerBase
         }
     }
 
+    /// <summary>Searches YouTube Music for artists.</summary>
+    [HttpGet("YouTube/Artists/Search")]
+    public async Task<ActionResult<List<YouTubeArtistSummaryDto>>> SearchArtists([FromQuery] string query, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return new List<YouTubeArtistSummaryDto>();
+        }
+
+        try
+        {
+            return await _youTubeMusic.SearchArtistsAsync(query, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>A YouTube Music artist with their albums, singles and EPs and their most popular songs.</summary>
+    [HttpGet("YouTube/Artists/{channelId}")]
+    public async Task<ActionResult<YouTubeArtistPageDto>> GetArtist([FromRoute] string channelId, CancellationToken cancellationToken)
+    {
+        if (!YouTubeMusicClient.IsValidChannelId(channelId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var artist = await _youTubeMusic.GetArtistAsync(channelId, cancellationToken).ConfigureAwait(false);
+            return artist != null ? artist : NotFound();
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>A YouTube Music album with its tracks, which can be streamed and downloaded like search results.</summary>
+    [HttpGet("YouTube/Albums/{albumId}")]
+    public async Task<ActionResult<YouTubeAlbumDto>> GetAlbum([FromRoute] string albumId, CancellationToken cancellationToken)
+    {
+        if (!YouTubeMusicClient.IsValidAlbumId(albumId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var album = await _youTubeMusic.GetAlbumDetailsAsync(albumId, cancellationToken).ConfigureAwait(false);
+            return album != null ? album : NotFound();
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
     /// <summary>Queues a download of a YouTube Music track (a result of <see cref="Search"/>) into the music library.</summary>
     [HttpPost("Downloads")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]

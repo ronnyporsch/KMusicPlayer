@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 
@@ -15,6 +16,11 @@ data class ArtistAlbumsState(
     val isSongsLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),
+    /** Whether this is a YouTube Music artist, whose songs can be downloaded into the library if [canDownload]. */
+    val isYouTube: Boolean = false,
+    val canDownload: Boolean = false,
+    /** YouTube Music downloads by song id. */
+    val downloads: Map<String, DownloadStatus> = emptyMap(),
 )
 
 sealed class ArtistAlbumsEvent {
@@ -25,6 +31,8 @@ sealed class ArtistAlbumsEvent {
     data class SongSelectionToggled(val song: Song) : ArtistAlbumsEvent()
     data object PlayAllSongs : ArtistAlbumsEvent()
     data object ShuffleAllSongs : ArtistAlbumsEvent()
+    /** Downloads a YouTube Music song into the library. */
+    data class DownloadSong(val song: Song) : ArtistAlbumsEvent()
 }
 
 sealed class ArtistAlbumsEffect {

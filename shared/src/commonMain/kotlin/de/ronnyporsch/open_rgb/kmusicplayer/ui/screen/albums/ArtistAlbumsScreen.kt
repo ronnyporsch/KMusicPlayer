@@ -29,6 +29,8 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderTitle
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ExpandableText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
@@ -78,12 +80,14 @@ fun ArtistAlbumsScreen(
                                     true
                                 } else false
                             }
+
                             Key.DirectionUp -> {
                                 if (currentIndex > 0) {
                                     viewModel.onEvent(ArtistAlbumsEvent.SongClicked(state.songs[currentIndex - 1], currentIndex - 1))
                                     true
                                 } else false
                             }
+
                             else -> false
                         }
                     } else false
@@ -98,17 +102,20 @@ fun ArtistAlbumsScreen(
                     )
                 }
 
-                if (state.albums.isNotEmpty()) {
+                // Only YouTube Music knows release types; library albums all go under "Albums"
+                val (albums, singles) = state.albums.partition { it.releaseType == null || it.releaseType == "Album" }
+                for ((title, releases) in listOf("Albums" to albums, "Singles & EPs" to singles)) {
+                    if (releases.isEmpty()) continue
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
-                            text = "Albums",
+                            text = title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
 
-                    items(state.albums, key = { it.id }) { album ->
+                    items(releases, key = { it.id }) { album ->
                         AlbumCard(album) {
                             viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album))
                         }
@@ -183,19 +190,29 @@ fun ArtistAlbumsScreen(
                         key = { _, song -> song.id },
                         span = { _, _ -> GridItemSpan(maxLineSpan) },
                     ) { index, song ->
-                        SongRow(
-                            song = song,
-                            index = index,
-                            onSongClick = { viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index)) },
-                            onSongDoubleClick = { viewModel.onEvent(ArtistAlbumsEvent.SongDoubleClicked(song, index)) },
-                            onSongCtrlClick = { viewModel.onEvent(ArtistAlbumsEvent.SongSelectionToggled(song)) },
-                            contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
-                            onArtistClick = { /* Already in artist view */ },
-                            isSelected = song.id in state.selectedSongIds,
-                            isPlaying = currentSongId == song.id,
-                            showAlbum = true,
-                            showArtist = false
-                        )
+                        Column {
+                            SongRow(
+                                song = song,
+                                index = index,
+                                onSongClick = { viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index)) },
+                                onSongDoubleClick = { viewModel.onEvent(ArtistAlbumsEvent.SongDoubleClicked(song, index)) },
+                                onSongCtrlClick = { viewModel.onEvent(ArtistAlbumsEvent.SongSelectionToggled(song)) },
+                                contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
+                                onArtistClick = { /* Already in artist view */ },
+                                isSelected = song.id in state.selectedSongIds,
+                                isPlaying = currentSongId == song.id,
+                                showAlbum = true,
+                                showArtist = false,
+                                trailingContent = if (state.isYouTube && state.canDownload) {
+                                    {
+                                        YouTubeDownloadButton(state.downloads[song.id]) {
+                                            viewModel.onEvent(ArtistAlbumsEvent.DownloadSong(song))
+                                        }
+                                    }
+                                } else null,
+                            )
+                            YouTubeDownloadMessage(state.downloads[song.id])
+                        }
                     }
                 }
             }
@@ -270,7 +287,7 @@ private fun AlbumCard(album: Album, onClick: () -> Unit) {
         )
 
         Text(
-            text = album.year?.toString() ?: "",
+            text = listOfNotNull(album.releaseType, album.year).joinToString(" \u2022 "),
             style = MaterialTheme.typography.bodySmall,
         )
     }

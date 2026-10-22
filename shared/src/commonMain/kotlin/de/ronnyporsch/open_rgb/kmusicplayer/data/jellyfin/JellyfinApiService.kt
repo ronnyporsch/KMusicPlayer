@@ -194,6 +194,13 @@ class JellyfinApiService {
 
     suspend fun searchYouTube(query: String): List<YouTubeSongDto> = get("KMusicPlayer/YouTube/Search", mapOf("query" to query))
 
+    suspend fun searchYouTubeArtists(query: String): List<YouTubeArtistSummaryDto> =
+        get("KMusicPlayer/YouTube/Artists/Search", mapOf("query" to query))
+
+    suspend fun getYouTubeArtist(channelId: String): YouTubeArtistPageDto = get("KMusicPlayer/YouTube/Artists/$channelId", emptyMap())
+
+    suspend fun getYouTubeAlbum(albumId: String): YouTubeAlbumDto = get("KMusicPlayer/YouTube/Albums/$albumId", emptyMap())
+
     /** Queues a download of [song], a result of [searchYouTube]. */
     suspend fun requestDownload(song: YouTubeSongDto): DownloadJobDto {
         val response = client.post("${baseUrl()}/KMusicPlayer/Downloads") {
@@ -206,6 +213,9 @@ class JellyfinApiService {
     }
 
     suspend fun getDownload(jobId: String): DownloadJobDto = get("KMusicPlayer/Downloads/$jobId", emptyMap())
+
+    /** The user's recent downloads. */
+    suspend fun getDownloads(): List<DownloadJobDto> = get("KMusicPlayer/Downloads", emptyMap())
 
     suspend fun getYouTubeStreamInfo(videoId: String): AudioStreamInfoDto? {
         val response = client.get("${baseUrl()}/KMusicPlayer/YouTube/$videoId/StreamInfo") { authorize() }

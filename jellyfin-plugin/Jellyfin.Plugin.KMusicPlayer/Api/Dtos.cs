@@ -68,6 +68,71 @@ public class YouTubeSongDto
     public int Duration { get; set; }
 }
 
+/// <summary>A YouTube Music artist search result.</summary>
+public class YouTubeArtistSummaryDto
+{
+    /// <summary>Gets or sets the channel id of the artist page.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string? ThumbnailUrl { get; set; }
+}
+
+/// <summary>An album, single or EP on an artist page.</summary>
+public class YouTubeAlbumSummaryDto
+{
+    /// <summary>Gets or sets the album's browse id, see <see cref="YouTubeSongDto.AlbumId"/>.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the release type as displayed by YouTube Music, e.g. "Album", "Single" or "EP".</summary>
+    public string? ReleaseType { get; set; }
+
+    public int? Year { get; set; }
+
+    public string? ThumbnailUrl { get; set; }
+}
+
+public class YouTubeArtistPageDto
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string? ThumbnailUrl { get; set; }
+
+    public string? Description { get; set; }
+
+    /// <summary>Gets or sets the artist's albums, singles and EPs, newest first per release type.</summary>
+    public List<YouTubeAlbumSummaryDto> Albums { get; set; } = [];
+
+    /// <summary>Gets or sets the artist's most popular songs.</summary>
+    public List<YouTubeSongDto> Songs { get; set; } = [];
+}
+
+public class YouTubeAlbumDto
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the artist credit as displayed.</summary>
+    public string Artist { get; set; } = string.Empty;
+
+    public List<YouTubeArtistDto> Artists { get; set; } = [];
+
+    public string? ReleaseType { get; set; }
+
+    public int? Year { get; set; }
+
+    public string? ThumbnailUrl { get; set; }
+
+    /// <summary>Gets or sets the playable tracks; clients send them back as is to download them.</summary>
+    public List<YouTubeSongDto> Songs { get; set; } = [];
+}
+
 public enum DownloadState
 {
     Queued,

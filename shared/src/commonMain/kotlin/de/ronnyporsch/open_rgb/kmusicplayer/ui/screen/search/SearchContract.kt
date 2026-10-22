@@ -5,12 +5,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.AudioStreamInfo
-
-sealed class DownloadStatus {
-    data object InProgress : DownloadStatus()
-    data class Done(val message: String) : DownloadStatus()
-    data class Failed(val message: String) : DownloadStatus()
-}
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
 
 data class SearchState(
     val query: String = "",
@@ -23,6 +18,7 @@ data class SearchState(
     val selectedSongIds: Set<String> = emptySet(),
     val youTubeAvailable: Boolean = false,
     val youTubeDownloadAvailable: Boolean = false,
+    val youTubeArtists: List<Artist> = emptyList(),
     val youTubeSongs: List<Song> = emptyList(),
     val isYouTubeLoading: Boolean = false,
     val youTubeError: String? = null,
@@ -35,7 +31,8 @@ sealed class SearchEvent {
     data class QueryChanged(val query: String) : SearchEvent()
     data object Search : SearchEvent()
     data class ArtistClicked(val artist: Artist) : SearchEvent()
-    data class ArtistNameClicked(val artistName: String) : SearchEvent()
+    /** [artistId] is known for artists of YouTube Music songs only. */
+    data class ArtistNameClicked(val artistName: String, val artistId: String? = null) : SearchEvent()
     data class AlbumClicked(val album: Album) : SearchEvent()
     data class PlaylistClicked(val playlist: Playlist) : SearchEvent()
     data class SongClicked(val song: Song, val index: Int) : SearchEvent()

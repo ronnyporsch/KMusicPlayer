@@ -1,24 +1,31 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 
+import androidx.lifecycle.viewModelScope
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeService
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTubeId
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
 import de.ronnyporsch.open_rgb.kmusicplayer.util.newestAlbumsFirst
 import de.ronnyporsch.open_rgb.kmusicplayer.util.newestFirst
+import kotlinx.coroutines.launch
 
 class ArtistAlbumsViewModel(
     private val artistId: String?,
     private val artistName: String,
     private val repository: MusicRepository,
+    private val youTube: YouTubeService,
 ) : MviStore<ArtistAlbumsState, ArtistAlbumsEvent, ArtistAlbumsEffect>(
-    ArtistAlbumsState(artistName = artistName)
+    ArtistAlbumsState(artistName = artistName, isYouTube = artistId?.isYouTubeId == true)
 ) {
 
     private var resolvedArtistId: String? = artistId
 
     init {
-        if (artistId != null) {
+        if (artistId != null && artistId.isYouTubeId) {
+            loadYouTubeArtist(artistId)
+        } else if (artistId != null) {
             loadAlbums(artistId)
             loadArtistInfo(artistId)
         } else {
@@ -51,6 +58,36 @@ class ArtistAlbumsViewModel(
                 val songs = state.value.songs
                 if (songs.isNotEmpty()) emitEffect(ArtistAlbumsEffect.PlaySongs(songs, 0, shuffle = true))
             }
+            is ArtistAlbumsEvent.DownloadSong -> youTube.download(event.song)
+        }
+    }
+
+    /** YouTube Music artists come with their releases and top songs; they have no library albums to search. */
+    private fun loadYouTubeArtist(id: String) {
+        setState { copy(isLoading = true, isSongsLoading = true) }
+        viewModelScope.launch {
+            youTube.capabilities.collect { setState { copy(canDownload = it.canDownload) } }
+        }
+        viewModelScope.launch {
+            youTube.downloads.collect { setState { copy(downloads = it) } }
+        }
+        launch {
+            runCatching { youTube.getArtist(id) }
+                .onSuccess { page ->
+                    setState {
+                        copy(
+                            artistName = page.artist.name,
+                            coverArtId = page.artist.coverArtId,
+                            biography = page.info.biography,
+                            largeImageUrl = page.info.largeImageUrl,
+                            albums = page.albums.newestFirst(),
+                            songs = page.songs,
+                            isLoading = false,
+                            isSongsLoading = false,
+                        )
+                    }
+                }
+                .onFailure { setState { copy(error = it.message, isLoading = false, isSongsLoading = false) } }
         }
     }
 

@@ -14,7 +14,15 @@ using MediaBrowser.Common.Net;
 
 namespace Jellyfin.Plugin.KMusicPlayer.Services;
 
-public record YouTubeAlbumTrack(string? VideoId, string Title, int? TrackNumber);
+public record YouTubeAlbumTrack(
+    string? VideoId,
+    string Title,
+    int? TrackNumber,
+    /// <summary>Track artist credit, empty if the album lists none (i.e. it's the album artist).</summary>
+    string Artist,
+    IReadOnlyList<YouTubeArtistDto> Artists,
+    /// <summary>In seconds, 0 if unknown.</summary>
+    int Duration);
 
 public record YouTubeAlbum(
     string Title,
@@ -25,10 +33,12 @@ public record YouTubeAlbum(
     string? ReleaseType,
     int? Year,
     int? TrackCount,
+    string? ThumbnailUrl,
     IReadOnlyList<YouTubeAlbumTrack> Tracks);
 
 /// <summary>
-/// Minimal client for the YouTube Music web (InnerTube) API: searching songs and looking up their albums (for tagging).
+/// Minimal client for the YouTube Music web (InnerTube) API: searching songs and artists, browsing artist pages and
+/// looking up albums (for browsing and tagging).
 /// </summary>
 public partial class YouTubeMusicClient
 {
@@ -36,6 +46,10 @@ public partial class YouTubeMusicClient
     private const string ClientVersion = "1.20260101.01.00";
     // Restricts search results to the "Songs" shelf
     private const string SongsFilterParams = "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D";
+    // Restricts search results to the "Artists" shelf
+    private const string ArtistsFilterParams = "EgWKAQIgAWoKEAkQBRAKEAMQBA%3D%3D";
+    // Titles of the artist page shelves listing the artist's own releases (the client requests English)
+    private static readonly HashSet<string> DiscographyShelves = ["Albums", "Singles", "Singles & EPs", "EPs"];
     private static readonly HashSet<string> JoinPhrases =
         [",", "&", "and", "x", "feat.", "feat", "ft.", "ft", "featuring", "with", "vs.", "vs"];
 
@@ -52,20 +66,75 @@ public partial class YouTubeMusicClient
     public static string ResizeThumbnail(string url, int size) =>
         ThumbnailSizeRegex().Replace(url, $"=w{size}-h{size}");
 
+    public static bool IsValidChannelId(string id) => ChannelIdRegex().IsMatch(id);
+
+    public static bool IsValidAlbumId(string id) => AlbumIdRegex().IsMatch(id);
+
     public async Task<List<YouTubeSongDto>> SearchSongsAsync(string query, CancellationToken cancellationToken)
     {
-        var root = await PostAsync("search", new JsonObject { ["query"] = query, ["params"] = SongsFilterParams }, cancellationToken)
-            .ConfigureAwait(false);
-        var sections = Path(root, "contents", "tabbedSearchResultsRenderer", "tabs").Items().FirstOrDefault()
-            .Pipe(tab => Path(tab, "tabRenderer", "content", "sectionListRenderer", "contents"))
-            .Items();
-        return sections
-            .SelectMany(section => Path(section, "musicShelfRenderer", "contents").Items())
-            .Select(item => Path(item, "musicResponsiveListItemRenderer"))
+        var items = await SearchAsync(query, SongsFilterParams, cancellationToken).ConfigureAwait(false);
+        return items
             .Select(ParseSong)
             .OfType<YouTubeSongDto>()
             .DistinctBy(song => song.VideoId)
             .ToList();
+    }
+
+    public async Task<List<YouTubeArtistSummaryDto>> SearchArtistsAsync(string query, CancellationToken cancellationToken)
+    {
+        var items = await SearchAsync(query, ArtistsFilterParams, cancellationToken).ConfigureAwait(false);
+        return items
+            .Select(item =>
+            {
+                var name = Join(FlexColumnRuns(item, 0));
+                return PageType(item) == "MUSIC_PAGE_TYPE_ARTIST" && BrowseId(item) is { } id && name.Length > 0
+                    ? new YouTubeArtistSummaryDto { Id = id, Name = name, ThumbnailUrl = Thumbnail(item) }
+                    : null;
+            })
+            .OfType<YouTubeArtistSummaryDto>()
+            .DistinctBy(artist => artist.Id)
+            .ToList();
+    }
+
+    /// <summary>Looks up an artist page by its channel id, or returns null if unavailable.</summary>
+    public async Task<YouTubeArtistPageDto?> GetArtistAsync(string channelId, CancellationToken cancellationToken)
+    {
+        var root = await PostAsync("browse", new JsonObject { ["browseId"] = channelId }, cancellationToken).ConfigureAwait(false);
+        // musicImmersiveHeaderRenderer for most artists, musicVisualHeaderRenderer for some
+        var header = Path(root, "header") is JsonObject headers ? headers.Select(entry => entry.Value).FirstOrDefault() : null;
+        var name = Join(Path(header, "title", "runs").Items());
+        if (name.Length == 0)
+        {
+            return null;
+        }
+
+        var sections = Path(root, "contents", "singleColumnBrowseResultsRenderer", "tabs").Items().FirstOrDefault()
+            .Pipe(tab => Path(tab, "tabRenderer", "content", "sectionListRenderer", "contents"))
+            .Items();
+        var albums = sections
+            .Select(section => Path(section, "musicCarouselShelfRenderer"))
+            .Where(shelf => shelf != null)
+            .Select(shelf => (Shelf: shelf, Title: Path(shelf, "header", "musicCarouselShelfBasicHeaderRenderer", "title", "runs").Items().FirstOrDefault()))
+            .Where(shelf => PageType(shelf.Title) == "MUSIC_PAGE_TYPE_ARTIST_DISCOGRAPHY" || DiscographyShelves.Contains(String(shelf.Title, "text") ?? string.Empty))
+            .Select(shelf => GetDiscographyAsync(shelf.Shelf, shelf.Title, cancellationToken))
+            .ToList();
+        var songs = sections.Select(section => Path(section, "musicShelfRenderer")).FirstOrDefault(shelf => shelf != null)
+            .Pipe(shelf => GetTopSongsAsync(shelf, cancellationToken));
+
+        var description = sections.Select(section => Path(section, "musicDescriptionShelfRenderer", "description", "runs"))
+            .Select(runs => Join(runs.Items()))
+            .FirstOrDefault(text => text.Length > 0)
+            ?? Join(Path(header, "description", "runs").Items());
+
+        return new YouTubeArtistPageDto
+        {
+            Id = channelId,
+            Name = name,
+            ThumbnailUrl = Thumbnail(header),
+            Description = description.Length > 0 ? description : null,
+            Albums = (await Task.WhenAll(albums).ConfigureAwait(false)).SelectMany(list => list).DistinctBy(album => album.Id).ToList(),
+            Songs = await songs.ConfigureAwait(false),
+        };
     }
 
     /// <summary>Looks up an album by its browse id (see <see cref="YouTubeSongDto.AlbumId"/>), or returns null if unavailable.</summary>
@@ -73,6 +142,123 @@ public partial class YouTubeMusicClient
     {
         var root = await PostAsync("browse", new JsonObject { ["browseId"] = albumId }, cancellationToken).ConfigureAwait(false);
         return ParseAlbum(root);
+    }
+
+    /// <summary>Looks up an album with its playable tracks for clients, or returns null if unavailable.</summary>
+    public async Task<YouTubeAlbumDto?> GetAlbumDetailsAsync(string albumId, CancellationToken cancellationToken)
+    {
+        var album = await GetAlbumAsync(albumId, cancellationToken).ConfigureAwait(false);
+        if (album == null)
+        {
+            return null;
+        }
+
+        return new YouTubeAlbumDto
+        {
+            Id = albumId,
+            Title = album.Title,
+            Artist = album.Artist,
+            Artists = album.Artists.ToList(),
+            ReleaseType = album.ReleaseType,
+            Year = album.Year,
+            ThumbnailUrl = album.ThumbnailUrl,
+            Songs = album.Tracks
+                .Where(track => track.VideoId != null)
+                .Select(track => new YouTubeSongDto
+                {
+                    VideoId = track.VideoId!,
+                    Title = track.Title,
+                    Artist = track.Artist.Length > 0 ? track.Artist : album.Artist,
+                    Artists = (track.Artists.Count > 0 ? track.Artists : album.Artists).ToList(),
+                    Album = album.Title,
+                    AlbumId = albumId,
+                    ThumbnailUrl = album.ThumbnailUrl,
+                    Duration = track.Duration,
+                })
+                .ToList(),
+        };
+    }
+
+    private async Task<List<JsonNode?>> SearchAsync(string query, string filterParams, CancellationToken cancellationToken)
+    {
+        var root = await PostAsync("search", new JsonObject { ["query"] = query, ["params"] = filterParams }, cancellationToken)
+            .ConfigureAwait(false);
+        return Path(root, "contents", "tabbedSearchResultsRenderer", "tabs").Items().FirstOrDefault()
+            .Pipe(tab => Path(tab, "tabRenderer", "content", "sectionListRenderer", "contents"))
+            .Items()
+            .SelectMany(section => Path(section, "musicShelfRenderer", "contents").Items())
+            .Select(item => Path(item, "musicResponsiveListItemRenderer"))
+            .Where(item => item != null)
+            .ToList();
+    }
+
+    /// <summary>The artist page only shows the latest releases; the shelf title links to all of them.</summary>
+    private async Task<List<YouTubeAlbumSummaryDto>> GetDiscographyAsync(JsonNode? shelf, JsonNode? title, CancellationToken cancellationToken)
+    {
+        // Artist page items of the "Albums" shelf only show the year
+        var defaultType = String(title, "text") == "Albums" ? "Album" : null;
+        var items = Path(shelf, "contents").Items();
+        var endpoint = Path(title, "navigationEndpoint", "browseEndpoint");
+        if (PageType(title) == "MUSIC_PAGE_TYPE_ARTIST_DISCOGRAPHY" && String(endpoint, "browseId") is { } browseId)
+        {
+            try
+            {
+                var root = await PostAsync("browse", new JsonObject { ["browseId"] = browseId, ["params"] = String(endpoint, "params") }, cancellationToken)
+                    .ConfigureAwait(false);
+                var all = Path(root, "contents", "singleColumnBrowseResultsRenderer", "tabs").Items().FirstOrDefault()
+                    .Pipe(tab => Path(tab, "tabRenderer", "content", "sectionListRenderer", "contents"))
+                    .Items()
+                    .SelectMany(section => Path(section, "gridRenderer", "items").Items())
+                    .ToList();
+                if (all.Count > 0)
+                {
+                    items = all;
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // The artist page's selection is better than nothing
+            }
+        }
+
+        return items
+            .Select(item => ParseAlbumSummary(Path(item, "musicTwoRowItemRenderer"), defaultType))
+            .OfType<YouTubeAlbumSummaryDto>()
+            .ToList();
+    }
+
+    /// <summary>The artist page only shows the top 5 songs; the shelf title links to a playlist of up to 100.</summary>
+    private async Task<List<YouTubeSongDto>> GetTopSongsAsync(JsonNode? shelf, CancellationToken cancellationToken)
+    {
+        var items = Path(shelf, "contents").Items();
+        var endpoint = Path(Path(shelf, "title", "runs").Items().FirstOrDefault(), "navigationEndpoint", "browseEndpoint");
+        if (String(endpoint, "browseId") is { } browseId)
+        {
+            try
+            {
+                var root = await PostAsync("browse", new JsonObject { ["browseId"] = browseId, ["params"] = String(endpoint, "params") }, cancellationToken)
+                    .ConfigureAwait(false);
+                var all = Path(root, "contents", "singleColumnBrowseResultsRenderer", "tabs").Items().FirstOrDefault()
+                    .Pipe(tab => Path(tab, "tabRenderer", "content", "sectionListRenderer", "contents"))
+                    .Items()
+                    .SelectMany(section => Path(section, "musicPlaylistShelfRenderer", "contents").Items())
+                    .ToList();
+                if (all.Count > 0)
+                {
+                    items = all;
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // The artist page's top songs are better than nothing
+            }
+        }
+
+        return items
+            .Select(item => ParseSong(Path(item, "musicResponsiveListItemRenderer")))
+            .OfType<YouTubeSongDto>()
+            .DistinctBy(song => song.VideoId)
+            .ToList();
     }
 
     private async Task<JsonNode?> PostAsync(string endpoint, JsonObject parameters, CancellationToken cancellationToken)
@@ -99,11 +285,7 @@ public partial class YouTubeMusicClient
 
     private static YouTubeSongDto? ParseSong(JsonNode? item)
     {
-        var columns = Path(item, "flexColumns").Items();
-        List<JsonNode?> Runs(int column) =>
-            Path(columns.ElementAtOrDefault(column), "musicResponsiveListItemFlexColumnRenderer", "text", "runs").Items();
-
-        var titleRun = Runs(0).FirstOrDefault();
+        var titleRun = FlexColumnRuns(item, 0).FirstOrDefault();
         var title = String(titleRun, "text");
         var videoId = String(Path(titleRun, "navigationEndpoint", "watchEndpoint"), "videoId")
             ?? String(Path(item, "playlistItemData"), "videoId");
@@ -112,9 +294,14 @@ public partial class YouTubeMusicClient
             return null;
         }
 
-        // Second column: "<artist runs> • <album> • <duration>"
-        var details = Runs(1);
-        var artistRuns = details.TakeWhile(run => String(run, "text")?.Trim() != "•").ToList();
+        // Search results: "<artist runs> • <album> • <duration>" in the second column; artist pages and albums: artists in
+        // the second column, plays in the third, the album (if any) in the fourth and the duration in a fixed column
+        var artistRuns = FlexColumnRuns(item, 1).TakeWhile(run => String(run, "text")?.Trim() != "•").ToList();
+        var details = Path(item, "flexColumns").Items().Skip(1)
+            .Select(column => Path(column, "musicResponsiveListItemFlexColumnRenderer", "text", "runs"))
+            .Concat(Path(item, "fixedColumns").Items().Select(column => Path(column, "musicResponsiveListItemFixedColumnRenderer", "text", "runs")))
+            .SelectMany(runs => runs.Items())
+            .ToList();
         var albumRun = details.FirstOrDefault(run => PageType(run) == "MUSIC_PAGE_TYPE_ALBUM");
         var duration = details.Select(run => String(run, "text")?.Trim())
             .LastOrDefault(text => text != null && DurationRegex().IsMatch(text))
@@ -128,10 +315,34 @@ public partial class YouTubeMusicClient
             Artists = ParseArtists(artistRuns),
             Album = String(albumRun, "text") ?? string.Empty,
             AlbumId = BrowseId(albumRun) ?? string.Empty,
-            ThumbnailUrl = String(
-                Path(item, "thumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails").Items().LastOrDefault(),
-                "url"),
+            ThumbnailUrl = Thumbnail(item),
             Duration = duration,
+        };
+    }
+
+    private static YouTubeAlbumSummaryDto? ParseAlbumSummary(JsonNode? item, string? defaultType)
+    {
+        var titleRun = Path(item, "title", "runs").Items().FirstOrDefault();
+        var id = PageType(titleRun) == "MUSIC_PAGE_TYPE_ALBUM" ? BrowseId(titleRun)
+            : PageType(item) == "MUSIC_PAGE_TYPE_ALBUM" ? BrowseId(item)
+            : null;
+        var title = String(titleRun, "text");
+        if (id == null || string.IsNullOrEmpty(title))
+        {
+            return null;
+        }
+
+        // "Album • 2013", "Single • 2023" or just "2013"
+        var subtitle = Path(item, "subtitle", "runs").Items().Select(run => String(run, "text")?.Trim())
+            .OfType<string>().Where(text => text.Length > 0 && text != "•").ToList();
+        var year = subtitle.FirstOrDefault(text => YearRegex().IsMatch(text));
+        return new YouTubeAlbumSummaryDto
+        {
+            Id = id,
+            Title = title,
+            ReleaseType = subtitle.FirstOrDefault(text => !YearRegex().IsMatch(text)) ?? defaultType,
+            Year = year != null ? int.Parse(year, CultureInfo.InvariantCulture) : null,
+            ThumbnailUrl = String(Path(item, "thumbnailRenderer", "musicThumbnailRenderer", "thumbnail", "thumbnails").Items().LastOrDefault(), "url"),
         };
     }
 
@@ -147,7 +358,6 @@ public partial class YouTubeMusicClient
         }
 
         List<JsonNode?> Runs(string key) => Path(header, key, "runs").Items();
-        string Join(IEnumerable<JsonNode?> runs) => string.Concat(runs.Select(run => String(run, "text"))).Trim();
 
         var title = Join(Runs("title"));
         if (title.Length == 0)
@@ -164,10 +374,17 @@ public partial class YouTubeMusicClient
             .SelectMany(section => Path(section, "musicShelfRenderer", "contents").Items())
             .Select(item => Path(item, "musicResponsiveListItemRenderer"))
             .Where(renderer => renderer != null)
-            .Select(renderer => new YouTubeAlbumTrack(
-                String(Path(renderer, "playlistItemData"), "videoId"),
-                Join(Path(Path(renderer, "flexColumns").Items().FirstOrDefault(), "musicResponsiveListItemFlexColumnRenderer", "text", "runs").Items()),
-                int.TryParse(String(Path(renderer, "index", "runs").Items().FirstOrDefault(), "text"), out var number) ? number : null))
+            .Select(renderer =>
+            {
+                var song = ParseSong(renderer);
+                return new YouTubeAlbumTrack(
+                    String(Path(renderer, "playlistItemData"), "videoId"),
+                    Join(FlexColumnRuns(renderer, 0)),
+                    int.TryParse(String(Path(renderer, "index", "runs").Items().FirstOrDefault(), "text"), out var number) ? number : null,
+                    song?.Artist ?? string.Empty,
+                    song?.Artists ?? [],
+                    song?.Duration ?? 0);
+            })
             .Where(track => track.Title.Length > 0)
             .ToList();
 
@@ -184,6 +401,7 @@ public partial class YouTubeMusicClient
             subtitle.FirstOrDefault(text => !YearRegex().IsMatch(text)),
             year != null ? int.Parse(year, CultureInfo.InvariantCulture) : null,
             songCount != null ? int.Parse(songCount, CultureInfo.InvariantCulture) : (tracks.Count > 0 ? tracks.Count : null),
+            Thumbnail(header),
             tracks);
     }
 
@@ -202,6 +420,15 @@ public partial class YouTubeMusicClient
         .OfType<YouTubeArtistDto>()
         .DistinctBy(artist => artist.Name)
         .ToList();
+
+    private static List<JsonNode?> FlexColumnRuns(JsonNode? item, int column) =>
+        Path(Path(item, "flexColumns").Items().ElementAtOrDefault(column), "musicResponsiveListItemFlexColumnRenderer", "text", "runs").Items();
+
+    private static string Join(IEnumerable<JsonNode?> runs) => string.Concat(runs.Select(run => String(run, "text"))).Trim();
+
+    /// <summary>URL of the largest thumbnail of a list item or header.</summary>
+    private static string? Thumbnail(JsonNode? node) =>
+        String(Path(node, "thumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails").Items().LastOrDefault(), "url");
 
     private static JsonNode? Path(JsonNode? node, params string[] keys) =>
         keys.Aggregate(node, (current, key) => current is JsonObject obj ? obj[key] : null);
@@ -226,6 +453,12 @@ public partial class YouTubeMusicClient
 
     [GeneratedRegex(@"(\d+) songs?")]
     private static partial Regex SongCountRegex();
+
+    [GeneratedRegex(@"^UC[\w-]{22}$")]
+    private static partial Regex ChannelIdRegex();
+
+    [GeneratedRegex(@"^MPREb_[\w-]+$")]
+    private static partial Regex AlbumIdRegex();
 }
 
 internal static class JsonNodeExtensions

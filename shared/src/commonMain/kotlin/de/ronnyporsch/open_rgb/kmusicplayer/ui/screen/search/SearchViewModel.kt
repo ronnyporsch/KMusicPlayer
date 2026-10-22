@@ -35,6 +35,9 @@ class SearchViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            youTube.downloads.collect { setState { copy(downloads = it) } }
+        }
     }
 
     override fun onEvent(event: SearchEvent) {
@@ -51,7 +54,7 @@ class SearchViewModel(
             is SearchEvent.ArtistClicked ->
                 emitEffect(SearchEffect.NavigateToArtist(event.artist.id, event.artist.name))
             is SearchEvent.ArtistNameClicked ->
-                emitEffect(SearchEffect.NavigateToArtist(null, event.artistName))
+                emitEffect(SearchEffect.NavigateToArtist(event.artistId, event.artistName))
             is SearchEvent.AlbumClicked ->
                 emitEffect(SearchEffect.NavigateToAlbum(event.album.id))
             is SearchEvent.PlaylistClicked ->
@@ -60,7 +63,7 @@ class SearchViewModel(
             is SearchEvent.SongDoubleClicked -> play(currentState.songs, event.song, event.index)
             is SearchEvent.YouTubeSongClicked -> selectOrPlay(currentState.youTubeSongs, event.song, event.index)
             is SearchEvent.YouTubeSongDoubleClicked -> play(currentState.youTubeSongs, event.song, event.index)
-            is SearchEvent.DownloadYouTubeSong -> download(event.song)
+            is SearchEvent.DownloadYouTubeSong -> youTube.download(event.song)
         }
     }
 
@@ -114,14 +117,25 @@ class SearchViewModel(
             // Debounce: the query changes on every keystroke
             delay(400)
             try {
+                // Artists are optional: plugins before artist search answer with 404
+                val artists = async { runCatching { youTube.searchArtists(query) }.onFailure { if (it is CancellationException) throw it } }
                 val songs = youTube.searchSongs(query)
-                setState { copy(youTubeSongs = songs, isYouTubeLoading = false, youTubeError = null) }
+                val foundArtists = artists.await().getOrDefault(emptyList())
+                setState {
+                    copy(
+                        youTubeArtists = foundArtists,
+                        youTubeSongs = songs,
+                        isYouTubeLoading = false,
+                        youTubeError = null,
+                    )
+                }
                 loadYouTubeStreamInfo(songs)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 setState {
                     copy(
+                        youTubeArtists = emptyList(),
                         youTubeSongs = emptyList(),
                         isYouTubeLoading = false,
                         youTubeError = e.message ?: "YouTube Music search failed",
@@ -150,24 +164,5 @@ class SearchViewModel(
                 }
             }
         }
-    }
-
-    private fun download(song: Song) {
-        if (!currentState.youTubeDownloadAvailable) return
-        if (currentState.downloads[song.id] == DownloadStatus.InProgress) return
-        setDownloadStatus(song, DownloadStatus.InProgress)
-        launch {
-            try {
-                setDownloadStatus(song, DownloadStatus.Done(youTube.download(song)))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setDownloadStatus(song, DownloadStatus.Failed(e.message ?: "Download failed"))
-            }
-        }
-    }
-
-    private fun setDownloadStatus(song: Song, status: DownloadStatus) {
-        setState { copy(downloads = downloads + (song.id to status)) }
     }
 }

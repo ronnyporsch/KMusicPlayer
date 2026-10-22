@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION=1.6.1.0
+VERSION=1.7.0.0
 TARGET_ABI=12.2.0.0
 BASE_URL=${1:-http://localhost:8765}
 DOTNET=${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}
@@ -69,7 +69,7 @@ cat > dist/manifest.json <<JSON
     "versions": [
       {
         "version": "$VERSION",
-        "changelog": "Ships Deno so yt-dlp can use cookies; quieter stream info errors",
+        "changelog": "YouTube Music artist search, artist pages and albums",
         "targetAbi": "$TARGET_ABI",
         "sourceUrl": "$BASE_URL/$ZIP",
         "checksum": "$(md5sum "dist/$ZIP" | cut -d' ' -f1)",

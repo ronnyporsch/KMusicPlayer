@@ -29,6 +29,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderTitle
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 
 @Composable
@@ -75,12 +78,14 @@ fun AlbumDetailScreen(
                                     true
                                 } else false
                             }
+
                             Key.DirectionUp -> {
                                 if (currentIndex > 0) {
                                     viewModel.onEvent(AlbumDetailEvent.SongClicked(album.songs[currentIndex - 1], currentIndex - 1))
                                     true
                                 } else false
                             }
+
                             else -> false
                         }
                     } else false
@@ -117,7 +122,7 @@ fun AlbumDetailScreen(
                         )
 
                         val albumInfo = buildString {
-                            append("Album")
+                            append(album.releaseType ?: "Album")
                             if (album.year != null) {
                                 append(" \u2022 ")
                                 append(album.year)
@@ -158,24 +163,77 @@ fun AlbumDetailScreen(
                         ) {
                             Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
                         }
+
+                        if (state.isYouTube && state.canDownload) {
+                            AlbumDownloadButton(
+                                songs = album.songs,
+                                downloads = state.downloads,
+                                onClick = { viewModel.onEvent(AlbumDetailEvent.DownloadAll) },
+                                modifier = Modifier.weight(1f).height(44.dp),
+                            )
+                        }
                     }
                 }
 
                 itemsIndexed(album.songs, key = { _, song -> song.id }) { index, song ->
-                    SongRow(
-                        song = song,
-                        index = index,
-                        onArtistClick = { name -> viewModel.onEvent(AlbumDetailEvent.ArtistClicked(name)) },
-                        onSongClick = { viewModel.onEvent(AlbumDetailEvent.SongClicked(song, index)) },
-                        onSongDoubleClick = { viewModel.onEvent(AlbumDetailEvent.SongDoubleClicked(song, index)) },
-                        onSongCtrlClick = { viewModel.onEvent(AlbumDetailEvent.SongSelectionToggled(song)) },
-                        contextMenuSongs = { album.songs.contextMenuSongs(song, state.selectedSongIds) },
-                        isSelected = song.id in state.selectedSongIds,
-                        isPlaying = currentSongId == song.id,
-                    )
+                    Column {
+                        SongRow(
+                            song = song,
+                            index = index,
+                            onArtistClick = { name -> viewModel.onEvent(AlbumDetailEvent.ArtistClicked(name)) },
+                            onSongClick = { viewModel.onEvent(AlbumDetailEvent.SongClicked(song, index)) },
+                            onSongDoubleClick = { viewModel.onEvent(AlbumDetailEvent.SongDoubleClicked(song, index)) },
+                            onSongCtrlClick = { viewModel.onEvent(AlbumDetailEvent.SongSelectionToggled(song)) },
+                            contextMenuSongs = { album.songs.contextMenuSongs(song, state.selectedSongIds) },
+                            isSelected = song.id in state.selectedSongIds,
+                            isPlaying = currentSongId == song.id,
+                            trailingContent = if (state.isYouTube && state.canDownload) {
+                                {
+                                    YouTubeDownloadButton(state.downloads[song.id]) {
+                                        viewModel.onEvent(AlbumDetailEvent.DownloadSong(song))
+                                    }
+                                }
+                            } else null,
+                        )
+                        YouTubeDownloadMessage(state.downloads[song.id])
+                    }
                 }
             }
         }
     }
 }
 
+
+/** Downloads all songs of a YouTube Music album into the library and shows the overall progress. */
+@Composable
+private fun AlbumDownloadButton(
+    songs: List<Song>,
+    downloads: Map<String, DownloadStatus>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val statuses = songs.map { downloads[it.id] }
+    val done = statuses.count { it is DownloadStatus.Done }
+    val running = statuses.any { it == DownloadStatus.InProgress }
+    val failed = statuses.any { it is DownloadStatus.Failed }
+    val label = when {
+        running -> "$done/${songs.size}"
+        songs.isNotEmpty() && done == songs.size -> "\u2713  Downloaded"
+        failed -> "Retry download"
+        else -> "\u2193  Download"
+    }
+    OutlinedButton(
+        onClick = onClick,
+        // Only songs that aren't downloaded or downloading yet get requested, so a retry is safe
+        enabled = !running && done < songs.size,
+        modifier = modifier,
+        shape = RoundedCornerShape(0.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+    ) {
+        if (running) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = SpotifyGreen, strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(label, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}

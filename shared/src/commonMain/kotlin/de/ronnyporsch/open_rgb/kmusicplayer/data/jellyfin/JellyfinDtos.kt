@@ -128,6 +128,47 @@ data class YouTubeSongDto(
 )
 
 @Serializable
+data class YouTubeArtistSummaryDto(
+    /** Channel id of the artist page. */
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String = "",
+    @SerialName("ThumbnailUrl") val thumbnailUrl: String? = null,
+)
+
+@Serializable
+data class YouTubeAlbumSummaryDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Title") val title: String = "",
+    /** As displayed by YouTube Music, e.g. "Album", "Single" or "EP". */
+    @SerialName("ReleaseType") val releaseType: String? = null,
+    @SerialName("Year") val year: Int? = null,
+    @SerialName("ThumbnailUrl") val thumbnailUrl: String? = null,
+)
+
+@Serializable
+data class YouTubeArtistPageDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String = "",
+    @SerialName("ThumbnailUrl") val thumbnailUrl: String? = null,
+    @SerialName("Description") val description: String? = null,
+    @SerialName("Albums") val albums: List<YouTubeAlbumSummaryDto> = emptyList(),
+    /** The artist's most popular songs. */
+    @SerialName("Songs") val songs: List<YouTubeSongDto> = emptyList(),
+)
+
+@Serializable
+data class YouTubeAlbumDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Title") val title: String = "",
+    @SerialName("Artist") val artist: String = "",
+    @SerialName("Artists") val artists: List<YouTubeArtistDto> = emptyList(),
+    @SerialName("ReleaseType") val releaseType: String? = null,
+    @SerialName("Year") val year: Int? = null,
+    @SerialName("ThumbnailUrl") val thumbnailUrl: String? = null,
+    @SerialName("Songs") val songs: List<YouTubeSongDto> = emptyList(),
+)
+
+@Serializable
 data class DownloadJobDto(
     @SerialName("Id") val id: String,
     @SerialName("VideoId") val videoId: String = "",

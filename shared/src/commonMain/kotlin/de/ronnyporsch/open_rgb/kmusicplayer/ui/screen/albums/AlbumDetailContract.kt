@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 
@@ -8,6 +9,11 @@ data class AlbumDetailState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),
+    /** Whether this is a YouTube Music album, whose songs can be downloaded into the library if [canDownload]. */
+    val isYouTube: Boolean = false,
+    val canDownload: Boolean = false,
+    /** YouTube Music downloads by song id. */
+    val downloads: Map<String, DownloadStatus> = emptyMap(),
 )
 
 sealed class AlbumDetailEvent {
@@ -18,9 +24,14 @@ sealed class AlbumDetailEvent {
     data object PlayAll : AlbumDetailEvent()
     data object ShuffleAll : AlbumDetailEvent()
     data class ArtistClicked(val artistName: String) : AlbumDetailEvent()
+    /** Downloads a YouTube Music song into the library. */
+    data class DownloadSong(val song: Song) : AlbumDetailEvent()
+    /** Downloads all songs of a YouTube Music album into the library. */
+    data object DownloadAll : AlbumDetailEvent()
 }
 
 sealed class AlbumDetailEffect {
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : AlbumDetailEffect()
-    data class NavigateToArtist(val artistName: String) : AlbumDetailEffect()
+    /** [artistId] is only known for YouTube Music artists. */
+    data class NavigateToArtist(val artistName: String, val artistId: String? = null) : AlbumDetailEffect()
 }

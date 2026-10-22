@@ -8,10 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,13 +21,15 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.youTubeArtistId
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
@@ -167,7 +165,7 @@ fun SearchScreen(
                             )
                         }
                     }
-                    if (!state.isYouTubeLoading && state.youTubeError == null && state.youTubeSongs.isEmpty()) {
+                    if (!state.isYouTubeLoading && state.youTubeError == null && state.youTubeArtists.isEmpty() && state.youTubeSongs.isEmpty()) {
                         item {
                             Text(
                                 "No results on YouTube Music",
@@ -177,12 +175,19 @@ fun SearchScreen(
                             )
                         }
                     }
+                    items(state.youTubeArtists, key = { "yt-artist-${it.id}" }) { artist ->
+                        SearchArtistRow(artist, subtitle = "Artist \u2022 YouTube Music") {
+                            viewModel.onEvent(SearchEvent.ArtistClicked(artist))
+                        }
+                    }
                     itemsIndexed(state.youTubeSongs, key = { _, song -> "yt-${song.id}" }) { index, song ->
                         val download = state.downloads[song.id]
                         Column {
                             SongRow(
                                 song = song,
-                                onArtistClick = { name -> viewModel.onEvent(SearchEvent.ArtistNameClicked(name)) },
+                                onArtistClick = { name ->
+                                    viewModel.onEvent(SearchEvent.ArtistNameClicked(name, song.youTubeArtistId(name)))
+                                },
                                 onSongClick = { viewModel.onEvent(SearchEvent.YouTubeSongClicked(song, index)) },
                                 onSongDoubleClick = { viewModel.onEvent(SearchEvent.YouTubeSongDoubleClicked(song, index)) },
                                 isSelected = song.id in state.selectedSongIds,
@@ -198,23 +203,11 @@ fun SearchScreen(
                                         )
                                     }
                                     if (state.youTubeDownloadAvailable) {
-                                        DownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) }
+                                        YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) }
                                     }
                                 },
                             )
-                            val message = when (download) {
-                                is DownloadStatus.Done -> download.message
-                                is DownloadStatus.Failed -> download.message
-                                else -> null
-                            }
-                            if (message != null) {
-                                Text(
-                                    message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (download is DownloadStatus.Failed) MaterialTheme.colorScheme.error else SpotifyLightGray,
-                                    modifier = Modifier.padding(start = 68.dp, end = 16.dp, bottom = 8.dp),
-                                )
-                            }
+                            YouTubeDownloadMessage(download)
                         }
                     }
                 }
@@ -232,34 +225,7 @@ fun SearchScreen(
 }
 
 @Composable
-private fun DownloadButton(status: DownloadStatus?, onDownload: () -> Unit) {
-    when (status) {
-        DownloadStatus.InProgress -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = SpotifyGreen, strokeWidth = 2.dp)
-        }
-        is DownloadStatus.Done -> TooltipIconButton(
-            onClick = {},
-            icon = Icons.Default.CheckCircle,
-            contentDescription = "Added to library",
-            tint = SpotifyGreen,
-        )
-        is DownloadStatus.Failed -> TooltipIconButton(
-            onClick = onDownload,
-            icon = Icons.Default.ErrorOutline,
-            contentDescription = "Download failed, click to retry",
-            tint = MaterialTheme.colorScheme.error,
-        )
-        null -> TooltipIconButton(
-            onClick = onDownload,
-            icon = Icons.Default.Download,
-            contentDescription = "Download to library",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun SearchArtistRow(artist: Artist, onClick: () -> Unit) {
+private fun SearchArtistRow(artist: Artist, subtitle: String = "Artist", onClick: () -> Unit) {
     val coverArt = LocalCoverArtUrlProvider.current
     Row(
         modifier = Modifier
@@ -276,7 +242,7 @@ private fun SearchArtistRow(artist: Artist, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column {
             Text(artist.name, style = MaterialTheme.typography.bodyLarge)
-            Text("Artist", style = MaterialTheme.typography.bodySmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

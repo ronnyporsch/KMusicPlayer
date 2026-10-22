@@ -33,6 +33,8 @@ data class Album(
     val year: Int? = null,
     val duration: Int = 0,
     val songs: List<Song> = emptyList(),
+    /** E.g. "Album", "Single" or "EP"; only known for YouTube Music albums. */
+    val releaseType: String? = null,
 )
 
 @Serializable
@@ -94,14 +96,28 @@ fun Long.formatDurationMs(): String {
     return totalSeconds.formatDuration()
 }
 
-/** Songs from YouTube Music carry this prefix in [Song.id]; they are not part of the Subsonic library. */
+/**
+ * Songs, albums and artists from YouTube Music carry this prefix in their ids; they are not part of the library.
+ * Their album and artist ids (e.g. [Song.albumId]) carry it, too.
+ */
 const val YOUTUBE_SONG_ID_PREFIX = "yt:"
 
+val String.isYouTubeId: Boolean
+    get() = startsWith(YOUTUBE_SONG_ID_PREFIX)
+
+/** The YouTube Music id (video, album browse or channel id) of an id with [YOUTUBE_SONG_ID_PREFIX], else null. */
+val String.youTubeId: String?
+    get() = if (isYouTubeId) removePrefix(YOUTUBE_SONG_ID_PREFIX) else null
+
 val Song.isYouTube: Boolean
-    get() = id.startsWith(YOUTUBE_SONG_ID_PREFIX)
+    get() = id.isYouTubeId
 
 val Song.youTubeVideoId: String?
-    get() = if (isYouTube) id.removePrefix(YOUTUBE_SONG_ID_PREFIX) else null
+    get() = id.youTubeId
+
+/** Id of the YouTube Music artist page of the song's artist [name], if it has one. */
+fun Song.youTubeArtistId(name: String): String? =
+    if (isYouTube) artists.firstOrNull { it.name == name && it.id.isYouTubeId }?.id else null
 
 /** A line of [Lyrics]; [startMs] is null for unsynced lyrics. */
 data class LyricLine(
