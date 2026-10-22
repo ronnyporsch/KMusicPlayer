@@ -2,6 +2,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.platform
 
 import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.Intent
 import android.net.Uri
 import android.os.Looper
 import android.os.SystemClock
@@ -91,6 +92,12 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
+
+    // Swiping the app away from the recent apps stops the music; the next start creates a new session
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        AppSession.release()
+        stopSelf()
+    }
 
     override fun onDestroy() {
         library?.release()

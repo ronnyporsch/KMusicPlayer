@@ -99,6 +99,11 @@ class AppSession private constructor() {
 
         /** The session, created on first use. Call on the main thread. */
         fun get(): AppSession = instance ?: AppSession().also { instance = it }
+
+        /** Releases the session if there is one, see [AppSession.release]. */
+        fun release() {
+            instance?.release()
+        }
     }
 }
 
