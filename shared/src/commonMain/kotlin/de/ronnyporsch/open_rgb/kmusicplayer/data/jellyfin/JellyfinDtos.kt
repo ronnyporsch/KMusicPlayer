@@ -74,6 +74,26 @@ data class PlaylistCreationResultDto(
     @SerialName("Id") val id: String,
 )
 
+@Serializable
+data class LyricDto(
+    @SerialName("Lyrics") val lyrics: List<LyricLineDto> = emptyList(),
+)
+
+@Serializable
+data class LyricLineDto(
+    @SerialName("Text") val text: String = "",
+    /** In units of 100 ns, null for unsynced lyrics. */
+    @SerialName("Start") val start: Long? = null,
+)
+
+/** A lyrics search result of a lyrics provider plugin such as LrcLib. */
+@Serializable
+data class RemoteLyricInfoDto(
+    @SerialName("Id") val id: String,
+    @SerialName("ProviderName") val providerName: String = "",
+    @SerialName("Lyrics") val lyrics: LyricDto = LyricDto(),
+)
+
 // KMusicPlayer Jellyfin plugin (see jellyfin-plugin/)
 
 @Serializable

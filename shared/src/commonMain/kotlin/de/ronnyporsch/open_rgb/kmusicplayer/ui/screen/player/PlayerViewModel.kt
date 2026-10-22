@@ -8,7 +8,11 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.AudioPlayer
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.CrossfadeAudioPlayer
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 class PlayerViewModel(
     private val audioPlayer: AudioPlayer,
@@ -20,6 +24,9 @@ class PlayerViewModel(
     private var hasPreparedNext = false
     private var hasCrossfadeStarted = false
     private var lastError: String? = null
+
+    /** Song whose lyrics are in [PlayerState.lyrics], unless they failed to load. */
+    private var lyricsSongId: String? = null
 
     private val crossfadePlayer: CrossfadeAudioPlayer?
         get() = audioPlayer as? CrossfadeAudioPlayer
@@ -108,6 +115,13 @@ class PlayerViewModel(
             }
         }
         launch {
+            // Loaded for every song since the lyrics buttons are only shown for songs that have some
+            state
+                .map { it.playback.currentSong }
+                .distinctUntilChanged { old, new -> old?.id == new?.id }
+                .collectLatest { song -> if (song != null && song.id != lyricsSongId) loadLyrics(song) }
+        }
+        launch {
             settingsHolder.settings.collectLatest { settings ->
                 setState {
                     copy(playback = playback.copy(crossfadeEnabled = settings.playback.crossfadeEnabled))
@@ -134,10 +148,30 @@ class PlayerViewModel(
             is PlayerEvent.ToggleShuffle -> toggleShuffle()
             is PlayerEvent.ToggleRepeat -> toggleRepeat()
             is PlayerEvent.ToggleCrossfade -> toggleCrossfade()
+            is PlayerEvent.ToggleLyrics -> setState { copy(showLyrics = !showLyrics) }
+            is PlayerEvent.ShowLyrics -> setState { copy(showLyrics = true) }
             is PlayerEvent.SeekTo -> {
                 audioPlayer.seekTo(event.positionMs)
                 setState { copy(playback = playback.copy(positionMs = event.positionMs)) }
             }
+        }
+    }
+
+    private suspend fun loadLyrics(song: Song) {
+        lyricsSongId = null
+        setState { copy(lyrics = LyricsState.Loading) }
+        val result = repository.getLyrics(song)
+        // Repositories catch the cancellation when the song changes meanwhile
+        currentCoroutineContext().ensureActive()
+        // Cached unless loading failed, so playing the song again retries
+        result.onSuccess { lyricsSongId = song.id }
+        setState {
+            copy(
+                lyrics = result.fold(
+                    onSuccess = { lyrics -> lyrics?.let { LyricsState.Loaded(it) } ?: LyricsState.NotFound },
+                    onFailure = { LyricsState.Failed(it.message ?: "Couldn't load lyrics") },
+                )
+            )
         }
     }
 

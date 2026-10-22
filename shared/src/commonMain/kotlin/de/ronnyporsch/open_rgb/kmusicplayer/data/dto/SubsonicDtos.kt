@@ -20,6 +20,8 @@ data class SubsonicResponseBody(
     val playlist: PlaylistWithSongsDto? = null,
     val searchResult3: SearchResult3Dto? = null,
     val artistInfo2: ArtistInfo2Dto? = null,
+    val lyricsList: LyricsListDto? = null,
+    val lyrics: LyricsDto? = null,
 )
 
 @Serializable
@@ -142,4 +144,34 @@ data class SearchResult3Dto(
     val artist: List<ArtistDto> = emptyList(),
     val album: List<AlbumDto> = emptyList(),
     val song: List<SongDto> = emptyList(),
+)
+
+/** OpenSubsonic getLyricsBySongId. */
+@Serializable
+data class LyricsListDto(
+    val structuredLyrics: List<StructuredLyricsDto> = emptyList(),
+)
+
+@Serializable
+data class StructuredLyricsDto(
+    val lang: String = "",
+    val synced: Boolean = false,
+    /** In milliseconds, added to every line's start. */
+    val offset: Long = 0,
+    val line: List<LyricLineDto> = emptyList(),
+)
+
+@Serializable
+data class LyricLineDto(
+    /** In milliseconds, only set for synced lyrics. */
+    val start: Long? = null,
+    val value: String = "",
+)
+
+/** Plain lyrics of the classic getLyrics endpoint. */
+@Serializable
+data class LyricsDto(
+    val artist: String = "",
+    val title: String = "",
+    val value: String = "",
 )

@@ -149,6 +149,22 @@ class SubsonicApiService {
         }.body()
     }
 
+    /** OpenSubsonic extension "songLyrics"; servers without it answer with an error. */
+    suspend fun getLyricsBySongId(id: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getLyricsBySongId.view") {
+            addAuthParams()
+            parameter("id", id)
+        }.body()
+    }
+
+    suspend fun getLyrics(artist: String, title: String): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getLyrics.view") {
+            addAuthParams()
+            parameter("artist", artist)
+            parameter("title", title)
+        }.body()
+    }
+
     /** Asks the server to rescan its music folders. Requires an admin user on Navidrome. */
     suspend fun startScan(): Boolean {
         val response: SubsonicResponse = client.get("${baseUrl()}/rest/startScan.view") {

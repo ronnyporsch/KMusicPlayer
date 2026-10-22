@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.GraphicEq
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LyricsIcons
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -39,6 +40,8 @@ fun MiniPlayer(
     onArtistClick: (artistName: String) -> Unit,
     onAlbumClick: (albumId: String) -> Unit,
     onClick: () -> Unit,
+    /** Opens the player with the lyrics shown. */
+    onLyricsClick: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val playback = state.playback
@@ -170,7 +173,24 @@ fun MiniPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (state.lyrics is LyricsState.Loaded) {
+                    TooltipIconButton(
+                        onClick = {
+                            viewModel.onEvent(PlayerEvent.ShowLyrics)
+                            onLyricsClick()
+                        },
+                        icon = LyricsIcons.Lyrics,
+                        contentDescription = "Lyrics",
+                        tint = SpotifyLightGray,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
         }
     }
 }

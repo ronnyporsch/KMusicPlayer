@@ -4,6 +4,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.SearchResults
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.*
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -128,6 +129,22 @@ class JellyfinMusicRepository(
 
     override suspend fun startScan(): Result<Boolean> = runCatching { api.refreshLibrary() }
 
+    override suspend fun getLyrics(song: Song): Result<Lyrics?> = runCatching {
+        api.getLyrics(song.id)?.toLyrics()?.let { return@runCatching it }
+        // Not fetched yet (lyrics providers normally run during library scans): search them now, which
+        // fails without the lyric management permission
+        val results = try {
+            api.searchRemoteLyrics(song.id).filter { it.lyrics.lyrics.isNotEmpty() }
+        } catch (e: JellyfinApiException) {
+            if (e.status == HttpStatusCode.Forbidden || e.status == HttpStatusCode.Unauthorized) return@runCatching null
+            throw e
+        }
+        val best = results.firstOrNull { it.lyrics.toLyrics()?.isSynced == true } ?: results.firstOrNull()
+            ?: return@runCatching null
+        val saved = runCatching { api.downloadRemoteLyrics(song.id, best.id) }.getOrNull()
+        saved?.toLyrics() ?: best.lyrics.toLyrics()
+    }
+
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId, getPlatform().audioContainers)
 
     override fun getDownloadUrl(songId: String): String = api.getOriginalAudioUrl(songId)
@@ -155,6 +172,11 @@ class JellyfinMusicRepository(
             ) + params
         ).items.map { it.toSong() }
 }
+
+private fun LyricDto.toLyrics(): Lyrics? =
+    lyrics.takeIf { it.isNotEmpty() }?.let { lines ->
+        Lyrics(lines.map { LyricLine(it.text, it.start?.let { ticks -> ticks / 10_000L }) })
+    }
 
 private fun BaseItemDto.ticksToSeconds(): Int = ((runTimeTicks ?: 0L) / 10_000_000L).toInt()
 

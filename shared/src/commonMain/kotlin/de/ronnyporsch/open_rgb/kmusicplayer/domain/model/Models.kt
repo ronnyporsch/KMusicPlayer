@@ -102,3 +102,16 @@ val Song.isYouTube: Boolean
 
 val Song.youTubeVideoId: String?
     get() = if (isYouTube) id.removePrefix(YOUTUBE_SONG_ID_PREFIX) else null
+
+/** A line of [Lyrics]; [startMs] is null for unsynced lyrics. */
+data class LyricLine(
+    val text: String,
+    val startMs: Long? = null,
+)
+
+data class Lyrics(
+    val lines: List<LyricLine>,
+) {
+    /** Synced lyrics have a start time for every line, so the current line can be highlighted. */
+    val isSynced: Boolean get() = lines.isNotEmpty() && lines.all { it.startMs != null }
+}

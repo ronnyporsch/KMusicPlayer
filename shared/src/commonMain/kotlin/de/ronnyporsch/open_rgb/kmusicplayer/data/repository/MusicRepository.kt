@@ -43,6 +43,9 @@ interface MusicRepository {
     suspend fun getSongsForArtist(artistName: String, albumIds: List<String>): Result<List<Song>>
     suspend fun search(query: String): Result<SearchResults>
     suspend fun startScan(): Result<Boolean>
+
+    /** Synced lyrics if the server has them, plain ones otherwise; null if there are none. */
+    suspend fun getLyrics(song: Song): Result<Lyrics?>
     fun getStreamUrl(songId: String): String
 
     /** URL of the song's original file, e.g. for downloading it. */
@@ -191,6 +194,23 @@ class MusicRepositoryImpl(
     }
 
     override suspend fun startScan(): Result<Boolean> = runCatching { api.startScan() }
+
+    override suspend fun getLyrics(song: Song): Result<Lyrics?> = runCatching {
+        val structured = runCatching { api.getLyricsBySongId(song.id).subsonicResponse.lyricsList }.getOrNull()
+            ?.structuredLyrics.orEmpty()
+            .filter { it.line.isNotEmpty() }
+        val best = structured.firstOrNull { it.synced } ?: structured.firstOrNull()
+        if (best != null) {
+            return@runCatching Lyrics(best.line.map { line ->
+                LyricLine(line.value, line.start?.takeIf { best.synced }?.let { it + best.offset })
+            })
+        }
+        // Servers without the OpenSubsonic extension only know plain lyrics by artist and title
+        if (song.artist.isBlank() || song.title.isBlank()) return@runCatching null
+        api.getLyrics(song.artist, song.title).subsonicResponse.lyrics?.value
+            ?.takeIf { it.isNotBlank() }
+            ?.let { text -> Lyrics(text.lines().map { LyricLine(it.trim()) }) }
+    }
 
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId)
 

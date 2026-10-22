@@ -122,6 +122,27 @@ class JellyfinApiService {
     suspend fun refreshLibrary(): Boolean =
         client.post("${baseUrl()}/Library/Refresh") { authorize() }.status.isSuccess()
 
+    /** Lyrics stored on the server (embedded, sidecar file or downloaded before); null if there are none. */
+    suspend fun getLyrics(itemId: String): LyricDto? {
+        val response = client.get("${baseUrl()}/Audio/$itemId/Lyrics") { authorize() }
+        if (response.status == HttpStatusCode.NotFound) return null
+        response.ensureSuccess()
+        return response.body()
+    }
+
+    /**
+     * Asks the server's lyrics providers (e.g. the LrcLib plugin) for lyrics of the item.
+     * Requires the lyric management permission.
+     */
+    suspend fun searchRemoteLyrics(itemId: String): List<RemoteLyricInfoDto> = get("Audio/$itemId/RemoteSearch/Lyrics", emptyMap())
+
+    /** Saves the [searchRemoteLyrics] result [lyricId] for the item, so [getLyrics] returns it from now on. */
+    suspend fun downloadRemoteLyrics(itemId: String, lyricId: String): LyricDto {
+        val response = client.post("${baseUrl()}/Audio/$itemId/RemoteSearch/Lyrics/${lyricId.encodeURLPathPart()}") { authorize() }
+        response.ensureSuccess()
+        return response.body()
+    }
+
     /**
      * Stream URL that plays the original file if the platform can decode its container ([containers])
      * and an MP3 transcode otherwise. Carries the token as query parameter since players can't set headers.

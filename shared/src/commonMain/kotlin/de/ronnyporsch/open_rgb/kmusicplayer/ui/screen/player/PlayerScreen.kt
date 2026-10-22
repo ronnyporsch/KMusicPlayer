@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.GraphicEq
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LyricsIcons
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.HoverLinkText
@@ -71,7 +72,7 @@ fun PlayerScreen(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             IconButton(onClick = onBack) {
                 Icon(
@@ -80,18 +81,41 @@ fun PlayerScreen(
                     tint = MaterialTheme.colorScheme.onBackground,
                 )
             }
+            if (state.lyrics is LyricsState.Loaded) {
+                TooltipIconButton(
+                    onClick = { viewModel.onEvent(PlayerEvent.ToggleLyrics) },
+                    icon = LyricsIcons.Lyrics,
+                    contentDescription = if (state.showLyrics) "Hide lyrics" else "Show lyrics",
+                    tint = if (state.showLyrics) SpotifyGreen else SpotifyLightGray,
+                )
+            }
         }
 
-        Spacer(Modifier.weight(0.5f))
+        // Songs without lyrics show their cover; the lyrics come back for the next song that has some
+        val lyricsShown = state.showLyrics && song != null &&
+            (state.lyrics is LyricsState.Loaded || state.lyrics == LyricsState.Loading)
+        if (lyricsShown) {
+            LyricsView(
+                state = state.lyrics,
+                positionMs = playback.positionMs,
+                onSeek = {
+                    viewModel.onEvent(PlayerEvent.SeekTo(it))
+                    viewModel.onEvent(PlayerEvent.Play)
+                },
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
+            )
+        } else {
+            Spacer(Modifier.weight(0.5f))
 
-        CoverArtImage(
-            url = coverArt.getUrl(song?.coverArtId),
-            modifier = Modifier.size(280.dp),
-            cornerRadius = 0.dp,
-            placeholderFontSize = 80.sp,
-        )
+            CoverArtImage(
+                url = coverArt.getUrl(song?.coverArtId),
+                modifier = Modifier.size(280.dp),
+                cornerRadius = 0.dp,
+                placeholderFontSize = 80.sp,
+            )
 
-        Spacer(Modifier.weight(0.5f))
+            Spacer(Modifier.weight(0.5f))
+        }
 
         Box(Modifier.fillMaxWidth()) {
             HoverLinkText(

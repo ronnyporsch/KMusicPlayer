@@ -233,6 +233,7 @@ fun App() {
                                 },
                                 onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                                 onClick = { navigator.push(Screen.Player) },
+                                onLyricsClick = { navigator.push(Screen.Player) },
                             )
                         } else {
                             Box(Modifier.height(66.dp))

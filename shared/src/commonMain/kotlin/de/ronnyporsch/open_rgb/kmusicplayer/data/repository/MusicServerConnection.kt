@@ -154,6 +154,10 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun search(query: String) = active.search(query)
         override suspend fun startScan() = active.startScan()
 
+        // YouTube Music tracks aren't library items, the server has no lyrics for them
+        override suspend fun getLyrics(song: Song) =
+            if (song.isYouTube) Result.success(null) else active.getLyrics(song)
+
         override fun getStreamUrl(songId: String): String {
             val videoId = songId.takeIf { it.startsWith(YOUTUBE_SONG_ID_PREFIX) }?.removePrefix(YOUTUBE_SONG_ID_PREFIX)
                 ?: return active.getStreamUrl(songId)
