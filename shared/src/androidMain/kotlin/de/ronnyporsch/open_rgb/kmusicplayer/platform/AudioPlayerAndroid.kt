@@ -55,7 +55,8 @@ class AudioPlayerAndroid : AudioPlayer {
             isPlaying = player.isPlaying,
             positionMs = player.currentPosition,
             durationMs = player.duration.coerceAtLeast(0),
-            isBuffering = player.playbackState == Player.STATE_BUFFERING,
+            // Buffering while paused counts as paused, the player isn't trying to play
+            isBuffering = player.playbackState == Player.STATE_BUFFERING && player.playWhenReady,
         )
     }
 

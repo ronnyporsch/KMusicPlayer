@@ -24,6 +24,8 @@ class CrossfadeAudioPlayer(
     private var nextPreparedUrl: String? = null
     @Volatile
     private var isCrossfading = false
+    @Volatile
+    private var isCrossfadePaused = false
 
     init {
         collectCurrentPlayerState()
@@ -57,6 +59,7 @@ class CrossfadeAudioPlayer(
     fun startCrossfade(durationMs: Long) {
         if (isCrossfading) return
         isCrossfading = true
+        isCrossfadePaused = false
         crossfadeJob?.cancel()
 
         val outPlayer = currentPlayer
@@ -70,6 +73,11 @@ class CrossfadeAudioPlayer(
             val steps = (durationMs / 50).toInt().coerceAtLeast(1)
             for (i in 1..steps) {
                 if (!isActive) break
+                // Hold the fade while paused, so it continues where it was on resume
+                while (isCrossfadePaused) {
+                    _state.value = inPlayer.state.value.copy(isPlaying = false, isBuffering = false)
+                    delay(50)
+                }
                 val progress = i.toFloat() / steps
                 outPlayer.setVolume(1f - progress)
                 inPlayer.setVolume(progress)
@@ -130,13 +138,16 @@ class CrossfadeAudioPlayer(
     override fun pause() {
         currentPlayer.pause()
         if (isCrossfading) {
+            isCrossfadePaused = true
             nextPlayer.pause()
+            _state.value = nextPlayer.state.value.copy(isPlaying = false, isBuffering = false)
         }
     }
 
     override fun resume() {
         currentPlayer.resume()
         if (isCrossfading) {
+            isCrossfadePaused = false
             nextPlayer.resume()
         }
     }

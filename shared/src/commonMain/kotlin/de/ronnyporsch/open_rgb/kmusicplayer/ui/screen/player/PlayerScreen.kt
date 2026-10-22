@@ -222,9 +222,8 @@ fun PlayerScreen(
                 TooltipIconButton(
                     onClick = { viewModel.onEvent(PlayerEvent.PlayPause) },
                     icon = when (playback.status) {
-                        PlaybackStatus.Playing -> Icons.Default.Pause
-                        PlaybackStatus.Buffering -> Icons.Default.PlayArrow
-                        else -> Icons.Default.PlayArrow
+                        PlaybackStatus.Playing, PlaybackStatus.Buffering -> Icons.Default.Pause
+                        PlaybackStatus.Paused, PlaybackStatus.Idle -> Icons.Default.PlayArrow
                     },
                     contentDescription = "Play or pause",
                     tint = MaterialTheme.colorScheme.onPrimary,

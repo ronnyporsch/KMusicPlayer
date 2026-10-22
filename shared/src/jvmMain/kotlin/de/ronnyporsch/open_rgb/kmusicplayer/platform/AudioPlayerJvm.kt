@@ -21,6 +21,8 @@ class AudioPlayerJvm : AudioPlayer {
     private var pcmData: ByteArray? = null
     private var decodedFormat: AudioFormat? = null
     @Volatile private var isPaused = false
+    /** Guards [isPaused] together with [_state], so a paused state is never overwritten by the playback loop. */
+    private val stateLock = Any()
     /** Bumped by [stop]; a playback job whose generation is outdated must not touch playback anymore. */
     @Volatile private var generation = 0
     @Volatile private var playbackPositionBytes: Long = 0
@@ -34,8 +36,10 @@ class AudioPlayerJvm : AudioPlayer {
         // it must notice it's outdated by itself, or it would start playing alongside this one
         val gen = generation
         fun stale() = gen != generation
-        fun publish(state: AudioPlayerState) {
-            if (!stale()) _state.value = state
+        fun publish(state: AudioPlayerState) = synchronized(stateLock) {
+            if (stale()) return@synchronized
+            // pause() may have run while this state was computed, e.g. during a blocking line.write()
+            _state.value = if (isPaused) state.copy(isPlaying = false, isBuffering = false) else state
         }
 
         playbackJob = scope.launch {
@@ -169,22 +173,26 @@ class AudioPlayerJvm : AudioPlayer {
         }
     }
 
-    override fun pause() {
+    override fun pause() = synchronized(stateLock) {
         isPaused = true
         currentLine?.stop()
-        val bytesPerSecond = decodedFormat?.let { it.sampleRate * it.frameSize } ?: return
-        val currentMs = ((playbackPositionBytes.toDouble() / bytesPerSecond) * 1000).toLong()
-        _state.value = AudioPlayerState(
+        val bytesPerSecond = decodedFormat?.let { it.sampleRate * it.frameSize }
+        // Still downloading/decoding: playback starts paused once that's done
+        val currentMs = bytesPerSecond?.let { ((playbackPositionBytes.toDouble() / it) * 1000).toLong() }
+        _state.value = _state.value.copy(
             isPlaying = false,
-            positionMs = currentMs,
-            durationMs = totalDurationMs,
+            isBuffering = false,
+            positionMs = currentMs ?: _state.value.positionMs,
         )
     }
 
-    override fun resume() {
-        currentLine?.start()
+    override fun resume() = synchronized(stateLock) {
+        // Nothing left to resume after playback finished or failed
+        if (playbackJob?.isActive != true) return@synchronized
         isPaused = false
-        _state.value = _state.value.copy(isPlaying = true)
+        val line = currentLine
+        line?.start()
+        _state.value = _state.value.copy(isPlaying = line != null, isBuffering = line == null)
     }
 
     override fun seekTo(positionMs: Long) {

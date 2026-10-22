@@ -275,10 +275,9 @@ class PlayerViewModel(
     private fun togglePlayPause() {
         val status = currentState.playback.status
         when (status) {
-            PlaybackStatus.Playing -> audioPlayer.pause()
+            PlaybackStatus.Playing, PlaybackStatus.Buffering -> audioPlayer.pause()
             PlaybackStatus.Paused -> audioPlayer.resume()
             PlaybackStatus.Idle -> playCurrent()
-            PlaybackStatus.Buffering -> {}
         }
     }
 
