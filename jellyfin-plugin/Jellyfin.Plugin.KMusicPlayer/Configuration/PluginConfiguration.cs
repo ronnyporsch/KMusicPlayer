@@ -5,7 +5,7 @@ namespace Jellyfin.Plugin.KMusicPlayer.Configuration;
 public class PluginConfiguration : BasePluginConfiguration
 {
     /// <summary>
-    /// Gets or sets the folder downloads are written to (as Album Artist/Album/NN Title.ext).
+    /// Gets or sets the folder downloads are written to (as Album Artist/YYYY - Album/NN Title.ext).
     /// Blank uses the first folder of the first music library.
     /// </summary>
     public string DownloadDirectory { get; set; } = string.Empty;

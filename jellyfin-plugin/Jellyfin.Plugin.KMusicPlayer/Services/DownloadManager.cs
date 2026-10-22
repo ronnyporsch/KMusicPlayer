@@ -154,7 +154,7 @@ public partial class DownloadManager
     /// <summary>
     /// Downloads the track in its original codec (no re-encoding), tags it (with details of its album if it can
     /// be looked up) and moves it to
-    /// <c>targetDir/Album Artist/Album/NN Title.ext</c> (Picard's default naming). Returns the file path.
+    /// <c>targetDir/Album Artist/YYYY - Album/NN Title.ext</c> (see <see cref="GetRelativePath"/>). Returns the file path.
     /// </summary>
     private async Task<string> DownloadAsync(YouTubeSongDto song, string targetDir, CancellationToken cancellationToken)
     {
@@ -171,20 +171,8 @@ public partial class DownloadManager
 
             AudioTagger.Write(audio, tags, cover);
 
-            var dir = new[]
-                {
-                    tags.AlbumArtist ?? (string.IsNullOrWhiteSpace(tags.Artist) ? "Unknown Artist" : tags.Artist),
-                    tags.Album,
-                }
-                .Where(part => !string.IsNullOrWhiteSpace(part))
-                .Select(part => SanitizeFileName(part!))
-                .Aggregate(targetDir, Path.Combine);
-            Directory.CreateDirectory(dir);
-
-            var trackPrefix = tags.TrackNumber != null && tags.AlbumArtist != null
-                ? tags.TrackNumber.Value.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + " "
-                : string.Empty;
-            var target = Path.Combine(dir, SanitizeFileName(trackPrefix + tags.Title) + Path.GetExtension(audio).ToLowerInvariant());
+            var target = Path.Combine(targetDir, GetRelativePath(tags) + Path.GetExtension(audio).ToLowerInvariant());
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             // Copy under a non-audio extension first so the library scan never picks up a half-written file
             var partial = target + ".part";
             File.Copy(audio, partial, true);
@@ -202,6 +190,37 @@ public partial class DownloadManager
                 _logger.LogDebug(e, "Could not delete {Dir}", workDir);
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the path of the file without extension, following the Picard naming script
+    /// <code>
+    /// $if2($getmulti(%albumartists%,0),$getmulti(%artists%,0),%artist%)/
+    /// $if(%album%,$if(%date%,$left(%date%,4) - ,)%album%/,)
+    /// $if($gt(%totaldiscs%,1),CD %discnumber%/,)
+    /// $if($and(%album%,%tracknumber%),$num(%tracknumber%,2) ,)
+    /// %title%
+    /// </code>
+    /// The disc folder never applies: YouTube Music albums have no discs.
+    /// </summary>
+    private static string GetRelativePath(TrackTags tags)
+    {
+        var artist = new[] { tags.AlbumArtists.FirstOrDefault(), tags.Artists.FirstOrDefault(), tags.Artist }
+            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Unknown Artist";
+        var parts = new List<string> { artist };
+
+        var hasAlbum = !string.IsNullOrWhiteSpace(tags.Album);
+        if (hasAlbum)
+        {
+            parts.Add(tags.Year != null ? $"{tags.Year.Value:0000} - {tags.Album}" : tags.Album!);
+        }
+
+        var trackPrefix = hasAlbum && tags.TrackNumber != null
+            ? tags.TrackNumber.Value.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + " "
+            : string.Empty;
+        parts.Add(trackPrefix + tags.Title);
+
+        return Path.Combine(parts.Select(SanitizeFileName).ToArray());
     }
 
     private async Task<YouTubeAlbum?> GetAlbumAsync(string albumId, CancellationToken cancellationToken)

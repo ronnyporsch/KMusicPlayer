@@ -7,7 +7,7 @@ music library. The plugin searches YouTube Music for the clients; when a client 
    optionally signed in with a cookies.txt file or the cookies of a browser on the server (e.g. Firefox),
 2. looks up its album and tags it like MusicBrainz Picard would (title, artists, album, album artists, track number,
    year, cover, ...),
-3. saves it as `Album Artist/Album/NN Title.opus` (or `.m4a`) into the download folder and
+3. saves it as `Album Artist/YYYY - Album/NN Title.opus` (or `.m4a`) into the download folder and
 4. starts a library scan.
 
 It also streams YouTube Music tracks for playback and reports the codec/bitrate a download would get.
