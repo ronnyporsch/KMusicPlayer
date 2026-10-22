@@ -1,6 +1,8 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +11,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
+import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +53,30 @@ fun MiniPlayer(
     val playback = state.playback
     val song = playback.currentSong ?: return
     val coverArt = LocalCoverArtUrlProvider.current
+    val isMobile = remember { getPlatform().isMobile }
+    val iconSize = if (isMobile) 32.dp else 24.dp
+    val buttonSize = if (isMobile) 48.dp else 32.dp
+    // Mobile: swipe the song info left/right to skip to the next/previous song.
+    val swipeOffset = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val lyricsButton: @Composable () -> Unit = {
+        if (state.lyrics is LyricsState.Loaded) {
+            TooltipIconButton(
+                onClick = {
+                    viewModel.onEvent(PlayerEvent.ShowLyrics)
+                    onLyricsClick()
+                },
+                icon = LyricsIcons.Lyrics,
+                contentDescription = "Lyrics",
+                tint = SpotifyLightGray,
+                modifier = Modifier.size(buttonSize),
+                iconSize = iconSize,
+            )
+        } else if (!isMobile) {
+            // Desktop keeps the slot so the controls don't shift between songs
+            Spacer(Modifier.size(buttonSize))
+        }
+    }
 
     val progress = if (playback.durationMs > 0) {
         (playback.positionMs.toFloat() / playback.durationMs.toFloat()).coerceIn(0f, 1f)
@@ -87,7 +117,30 @@ fun MiniPlayer(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(
+                        if (isMobile) Modifier
+                            .graphicsLayer { translationX = swipeOffset.value }
+                            .pointerInput(Unit) {
+                                val threshold = size.width / 4f
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        val offset = swipeOffset.value
+                                        when {
+                                            offset <= -threshold -> viewModel.onEvent(PlayerEvent.Next)
+                                            offset >= threshold -> viewModel.onEvent(PlayerEvent.Previous)
+                                        }
+                                        scope.launch { swipeOffset.animateTo(0f) }
+                                    },
+                                    onDragCancel = { scope.launch { swipeOffset.animateTo(0f) } },
+                                ) { change, dragAmount ->
+                                    change.consume()
+                                    scope.launch { swipeOffset.snapTo(swipeOffset.value + dragAmount) }
+                                }
+                            }
+                        else Modifier
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 CoverArtImage(
@@ -106,33 +159,57 @@ fun MiniPlayer(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     Spacer(Modifier.height(2.dp))
-                    ClickableArtistText(
-                        artists = song.artists,
-                        fallback = song.artist,
-                        onArtistClick = onArtistClick,
-                    )
+                    if (isMobile) {
+                        // Taps on the mini player open the big player; artists aren't links here
+                        Text(
+                            text = song.artists.joinToString { it.name }.ifEmpty { song.artist },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SpotifyLightGray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else {
+                        ClickableArtistText(
+                            artists = song.artists,
+                            fallback = song.artist,
+                            onArtistClick = onArtistClick,
+                        )
+                    }
                 }
             }
 
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = if (isMobile) Modifier else Modifier.weight(1f),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TooltipIconButton(
-                    onClick = { viewModel.onEvent(PlayerEvent.ToggleShuffle) },
-                    icon = Icons.Default.Shuffle,
-                    contentDescription = "Shuffle",
-                    tint = if (playback.shuffle) SpotifyGreen else SpotifyLightGray,
-                    modifier = Modifier.size(32.dp)
-                )
+                if (!isMobile) {
+                    TooltipIconButton(
+                        onClick = { viewModel.onEvent(PlayerEvent.ToggleShuffle) },
+                        icon = Icons.Default.Shuffle,
+                        contentDescription = "Shuffle",
+                        tint = if (playback.shuffle) SpotifyGreen else SpotifyLightGray,
+                        modifier = Modifier.size(32.dp)
+                    )
 
-                TooltipIconButton(
-                    onClick = { viewModel.onEvent(PlayerEvent.Previous) },
-                    icon = Icons.Default.SkipPrevious,
-                    contentDescription = "Previous song",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
+                    TooltipIconButton(
+                        onClick = { viewModel.onEvent(PlayerEvent.ToggleCrossfade) },
+                        icon = Icons.Default.GraphicEq,
+                        contentDescription = "Crossfade",
+                        tint = if (playback.crossfadeEnabled) SpotifyGreen else SpotifyLightGray,
+                        modifier = Modifier.size(32.dp)
+                    )
+
+                    TooltipIconButton(
+                        onClick = { viewModel.onEvent(PlayerEvent.Previous) },
+                        icon = Icons.Default.SkipPrevious,
+                        contentDescription = "Previous song",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                // Mobile: lyrics sit left of play/pause so play/pause stays at the edge
+                if (isMobile) lyricsButton()
 
                 TooltipIconButton(
                     onClick = { viewModel.onEvent(PlayerEvent.PlayPause) },
@@ -143,54 +220,36 @@ fun MiniPlayer(
                     },
                     contentDescription = "Play or pause",
                     tint = MaterialTheme.colorScheme.onSurface,
+                    iconSize = if (isMobile) 36.dp else 24.dp,
+                    modifier = if (isMobile) Modifier.size(buttonSize) else Modifier,
                 )
 
-                TooltipIconButton(
-                    onClick = { viewModel.onEvent(PlayerEvent.Next) },
-                    icon = Icons.Default.SkipNext,
-                    contentDescription = "Next song",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-
-                TooltipIconButton(
-                    onClick = { viewModel.onEvent(PlayerEvent.ToggleRepeat) },
-                    icon = when (playback.repeatMode) {
-                        RepeatMode.Off -> Icons.Default.Repeat
-                        RepeatMode.All -> Icons.Default.Repeat
-                        RepeatMode.One -> Icons.Default.RepeatOne
-                    },
-                    contentDescription = "Repeat",
-                    tint = if (playback.repeatMode != RepeatMode.Off) SpotifyGreen else SpotifyLightGray,
-                    modifier = Modifier.size(32.dp)
-                )
-
-                TooltipIconButton(
-                    onClick = { viewModel.onEvent(PlayerEvent.ToggleCrossfade) },
-                    icon = Icons.Default.GraphicEq,
-                    contentDescription = "Crossfade",
-                    tint = if (playback.crossfadeEnabled) SpotifyGreen else SpotifyLightGray,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (state.lyrics is LyricsState.Loaded) {
+                if (!isMobile) {
                     TooltipIconButton(
-                        onClick = {
-                            viewModel.onEvent(PlayerEvent.ShowLyrics)
-                            onLyricsClick()
+                        onClick = { viewModel.onEvent(PlayerEvent.Next) },
+                        icon = Icons.Default.SkipNext,
+                        contentDescription = "Next song",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+
+                    TooltipIconButton(
+                        onClick = { viewModel.onEvent(PlayerEvent.ToggleRepeat) },
+                        icon = when (playback.repeatMode) {
+                            RepeatMode.Off -> Icons.Default.Repeat
+                            RepeatMode.All -> Icons.Default.Repeat
+                            RepeatMode.One -> Icons.Default.RepeatOne
                         },
-                        icon = LyricsIcons.Lyrics,
-                        contentDescription = "Lyrics",
-                        tint = SpotifyLightGray,
+                        contentDescription = "Repeat",
+                        tint = if (playback.repeatMode != RepeatMode.Off) SpotifyGreen else SpotifyLightGray,
                         modifier = Modifier.size(32.dp)
                     )
+
+                    lyricsButton()
                 }
             }
+
+            // Balances the song info so the controls stay centered
+            if (!isMobile) Spacer(Modifier.weight(1f))
         }
     }
 }

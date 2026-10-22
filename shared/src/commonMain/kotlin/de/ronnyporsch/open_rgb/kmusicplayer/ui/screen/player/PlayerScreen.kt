@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDurationMs
@@ -62,6 +64,13 @@ fun PlayerScreen(
     val playback = state.playback
     val song = playback.currentSong
     val coverArt = LocalCoverArtUrlProvider.current
+    val isMobile = remember { getPlatform().isMobile }
+    // 6 buttons + play/pause must fit a 360dp-wide phone
+    val controlModifier = if (isMobile) Modifier.size(42.dp) else Modifier
+    // IconButton enforces a 48dp minimum touch target on desktop
+    val controlSlotSize = if (isMobile) 42.dp else 48.dp
+    val toggleIconSize = if (isMobile) 32.dp else 24.dp
+    val skipIconSize = if (isMobile) 40.dp else 24.dp
 
     Column(
         modifier = Modifier
@@ -79,14 +88,6 @@ fun PlayerScreen(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            if (state.lyrics is LyricsState.Loaded) {
-                TooltipIconButton(
-                    onClick = { viewModel.onEvent(PlayerEvent.ToggleLyrics) },
-                    icon = LyricsIcons.Lyrics,
-                    contentDescription = if (state.showLyrics) "Hide lyrics" else "Show lyrics",
-                    tint = if (state.showLyrics) SpotifyGreen else SpotifyLightGray,
                 )
             }
         }
@@ -127,16 +128,28 @@ fun PlayerScreen(
         }
 
         if (song != null) {
-            ClickableArtistText(
-                artists = song.artists,
-                fallback = song.artist,
-                onArtistClick = onArtistClick,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Box(Modifier.fillMaxWidth()) {
+                ClickableArtistText(
+                    artists = song.artists,
+                    fallback = song.artist,
+                    onArtistClick = onArtistClick,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            if (song.album.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Box(Modifier.fillMaxWidth()) {
+                    HoverLinkText(
+                        text = song.album,
+                        onClick = song.albumId.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
         } else {
             Text(
                 text = "",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -180,6 +193,17 @@ fun PlayerScreen(
                 icon = Icons.Default.Shuffle,
                 contentDescription = "Shuffle",
                 tint = if (playback.shuffle) SpotifyGreen else SpotifyLightGray,
+                modifier = controlModifier,
+                iconSize = toggleIconSize,
+            )
+
+            TooltipIconButton(
+                onClick = { viewModel.onEvent(PlayerEvent.ToggleCrossfade) },
+                icon = Icons.Default.GraphicEq,
+                contentDescription = "Crossfade",
+                tint = if (playback.crossfadeEnabled) SpotifyGreen else SpotifyLightGray,
+                modifier = controlModifier,
+                iconSize = toggleIconSize,
             )
 
             TooltipIconButton(
@@ -187,6 +211,8 @@ fun PlayerScreen(
                 icon = Icons.Default.SkipPrevious,
                 contentDescription = "Previous song",
                 tint = MaterialTheme.colorScheme.onBackground,
+                modifier = controlModifier,
+                iconSize = skipIconSize,
             )
 
             Box(
@@ -211,6 +237,8 @@ fun PlayerScreen(
                 icon = Icons.Default.SkipNext,
                 contentDescription = "Next song",
                 tint = MaterialTheme.colorScheme.onBackground,
+                modifier = controlModifier,
+                iconSize = skipIconSize,
             )
 
             TooltipIconButton(
@@ -222,14 +250,23 @@ fun PlayerScreen(
                 },
                 contentDescription = "Repeat",
                 tint = if (playback.repeatMode != RepeatMode.Off) SpotifyGreen else SpotifyLightGray,
+                modifier = controlModifier,
+                iconSize = toggleIconSize,
             )
 
-            TooltipIconButton(
-                onClick = { viewModel.onEvent(PlayerEvent.ToggleCrossfade) },
-                icon = Icons.Default.GraphicEq,
-                contentDescription = "Crossfade",
-                tint = if (playback.crossfadeEnabled) SpotifyGreen else SpotifyLightGray,
-            )
+            if (state.lyrics is LyricsState.Loaded) {
+                TooltipIconButton(
+                    onClick = { viewModel.onEvent(PlayerEvent.ToggleLyrics) },
+                    icon = LyricsIcons.Lyrics,
+                    contentDescription = if (state.showLyrics) "Hide lyrics" else "Show lyrics",
+                    tint = if (state.showLyrics) SpotifyGreen else SpotifyLightGray,
+                    modifier = controlModifier,
+                    iconSize = toggleIconSize,
+                )
+            } else {
+                // Keep the slot so the other controls don't shift between songs
+                Spacer(Modifier.size(controlSlotSize))
+            }
         }
 
         Spacer(Modifier.height(32.dp))

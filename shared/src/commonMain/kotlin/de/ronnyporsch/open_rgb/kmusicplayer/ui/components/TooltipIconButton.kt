@@ -1,10 +1,13 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.components
 
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -14,7 +17,8 @@ fun TooltipIconButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     tint: Color = LocalContentColor.current,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    iconSize: Dp = 24.dp,
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -33,6 +37,7 @@ fun TooltipIconButton(
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
+                modifier = Modifier.size(iconSize),
                 tint = if (enabled) tint else tint.copy(alpha = 0.38f)
             )
         }
