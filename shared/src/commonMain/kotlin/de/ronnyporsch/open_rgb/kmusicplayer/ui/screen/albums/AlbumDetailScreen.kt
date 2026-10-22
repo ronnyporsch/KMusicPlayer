@@ -213,7 +213,7 @@ private fun AlbumDownloadButton(
     modifier: Modifier = Modifier,
 ) {
     val statuses = songs.map { downloads[it.id] }
-    val done = statuses.count { it is DownloadStatus.Done }
+    val done = statuses.count { it is DownloadStatus.Done || it == DownloadStatus.InLibrary }
     val running = statuses.any { it == DownloadStatus.InProgress }
     val failed = statuses.any { it is DownloadStatus.Failed }
     val label = when {

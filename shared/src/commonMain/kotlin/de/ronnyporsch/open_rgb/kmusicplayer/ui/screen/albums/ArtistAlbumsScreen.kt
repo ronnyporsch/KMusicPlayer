@@ -4,7 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -12,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -116,7 +120,7 @@ fun ArtistAlbumsScreen(
                     }
 
                     items(releases, key = { it.id }) { album ->
-                        AlbumCard(album) {
+                        AlbumCard(album, downloaded = album.id in state.downloadedAlbumIds) {
                             viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album))
                         }
                     }
@@ -133,7 +137,7 @@ fun ArtistAlbumsScreen(
                     }
 
                     items(state.appearsOnAlbums, key = { it.id }) { album ->
-                        AlbumCard(album) {
+                        AlbumCard(album, downloaded = album.id in state.downloadedAlbumIds) {
                             viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album))
                         }
                     }
@@ -262,7 +266,7 @@ private fun ArtistHeader(
 }
 
 @Composable
-private fun AlbumCard(album: Album, onClick: () -> Unit) {
+private fun AlbumCard(album: Album, downloaded: Boolean, onClick: () -> Unit) {
     val coverArt = LocalCoverArtUrlProvider.current
     Column(
         modifier = Modifier
@@ -271,11 +275,24 @@ private fun AlbumCard(album: Album, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(8.dp),
     ) {
-        CoverArtImage(
-            url = coverArt.getUrl(album.coverArtId),
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-            placeholderFontSize = 40.sp,
-        )
+        Box(contentAlignment = Alignment.BottomEnd) {
+            CoverArtImage(
+                url = coverArt.getUrl(album.coverArtId),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                placeholderFontSize = 40.sp,
+            )
+            if (downloaded) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "In library",
+                    tint = SpotifyGreen,
+                    modifier = Modifier
+                        .padding(6.dp)
+                        .size(26.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), CircleShape),
+                )
+            }
+        }
 
         Spacer(Modifier.height(8.dp))
 

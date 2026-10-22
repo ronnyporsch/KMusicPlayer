@@ -21,6 +21,8 @@ data class ArtistAlbumsState(
     val canDownload: Boolean = false,
     /** YouTube Music downloads by song id. */
     val downloads: Map<String, DownloadStatus> = emptyMap(),
+    /** YouTube Music albums whose songs are all in the library. */
+    val downloadedAlbumIds: Set<String> = emptySet(),
 )
 
 sealed class ArtistAlbumsEvent {

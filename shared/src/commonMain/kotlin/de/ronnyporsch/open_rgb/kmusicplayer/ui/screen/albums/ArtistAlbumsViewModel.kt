@@ -86,6 +86,9 @@ class ArtistAlbumsViewModel(
                             isSongsLoading = false,
                         )
                     }
+                    // The server looks up the albums' track lists, which takes a moment the first time
+                    runCatching { youTube.downloadedAlbumIds(page.albums) }
+                        .onSuccess { setState { copy(downloadedAlbumIds = it) } }
                 }
                 .onFailure { setState { copy(error = it.message, isLoading = false, isSongsLoading = false) } }
         }

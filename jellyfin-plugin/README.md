@@ -11,7 +11,9 @@ music library. The plugin searches YouTube Music for the clients; when a client 
 4. starts a library scan.
 
 Clients can also search YouTube Music artists and browse their albums, singles and EPs and top songs; album tracks
-are streamed and downloaded like search results. The plugin also streams YouTube Music tracks for playback and
+are streamed and downloaded like search results. Clients are told which tracks are already downloaded: the plugin
+reads the YouTube URL in the comment tag of the files in the download folder (once, then only new or changed files)
+and keeps the index in `<data dir>/kmusicplayer/download-index.json`. The plugin also streams YouTube Music tracks for playback and
 reports the codec/bitrate a download would get.
 
 Requires Jellyfin 12.2. The plugin ships the standalone [yt-dlp](https://github.com/yt-dlp/yt-dlp) release for

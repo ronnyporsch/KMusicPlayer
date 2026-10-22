@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION=1.7.0.0
+VERSION=1.7.2.0
 TARGET_ABI=12.2.0.0
 BASE_URL=${1:-http://localhost:8765}
 DOTNET=${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}
@@ -69,7 +69,7 @@ cat > dist/manifest.json <<JSON
     "versions": [
       {
         "version": "$VERSION",
-        "changelog": "YouTube Music artist search, artist pages and albums",
+        "changelog": "YouTube Music artist search, artist pages and albums; reports which tracks and albums are already downloaded",
         "targetAbi": "$TARGET_ABI",
         "sourceUrl": "$BASE_URL/$ZIP",
         "checksum": "$(md5sum "dist/$ZIP" | cut -d' ' -f1)",

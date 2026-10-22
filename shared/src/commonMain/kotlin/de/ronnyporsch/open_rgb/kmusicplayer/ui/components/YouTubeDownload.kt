@@ -25,10 +25,10 @@ fun YouTubeDownloadButton(status: DownloadStatus?, onDownload: () -> Unit) {
         DownloadStatus.InProgress -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), color = SpotifyGreen, strokeWidth = 2.dp)
         }
-        is DownloadStatus.Done -> TooltipIconButton(
+        is DownloadStatus.Done, DownloadStatus.InLibrary -> TooltipIconButton(
             onClick = {},
             icon = Icons.Default.CheckCircle,
-            contentDescription = "Added to library",
+            contentDescription = if (status is DownloadStatus.Done) "Added to library" else "Already in library",
             tint = SpotifyGreen,
         )
         is DownloadStatus.Failed -> TooltipIconButton(

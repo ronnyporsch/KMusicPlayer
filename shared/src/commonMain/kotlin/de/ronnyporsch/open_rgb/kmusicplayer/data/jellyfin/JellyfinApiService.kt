@@ -214,6 +214,30 @@ class JellyfinApiService {
 
     suspend fun getDownload(jobId: String): DownloadJobDto = get("KMusicPlayer/Downloads/$jobId", emptyMap())
 
+    /** Those of [videoIds] whose tracks are already in the library. Empty with plugins that can't tell. */
+    suspend fun getDownloadedYouTube(videoIds: List<String>): List<String> {
+        val response = client.post("${baseUrl()}/KMusicPlayer/YouTube/Downloaded") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(videoIds)
+        }
+        if (response.status == HttpStatusCode.NotFound) return emptyList()
+        response.ensureSuccess()
+        return response.body()
+    }
+
+    /** Those of [albumIds] whose tracks are all in the library. Empty with plugins that can't tell. */
+    suspend fun getDownloadedYouTubeAlbums(albumIds: List<String>): List<String> {
+        val response = client.post("${baseUrl()}/KMusicPlayer/YouTube/Albums/Downloaded") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(albumIds)
+        }
+        if (response.status == HttpStatusCode.NotFound) return emptyList()
+        response.ensureSuccess()
+        return response.body()
+    }
+
     /** The user's recent downloads. */
     suspend fun getDownloads(): List<DownloadJobDto> = get("KMusicPlayer/Downloads", emptyMap())
 

@@ -22,6 +22,7 @@ public partial class DownloadManager
 {
     private const int MaxRetainedJobs = 200;
     private static readonly TimeSpan ImportTimeout = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan AlbumTracksLifetime = TimeSpan.FromDays(1);
     private static readonly string[] CoverHostSuffixes = [".googleusercontent.com", ".ytimg.com", ".ggpht.com"];
 
     private readonly ILogger<DownloadManager> _logger;
@@ -30,8 +31,12 @@ public partial class DownloadManager
     private readonly ILibraryManager _libraryManager;
     private readonly ITaskManager _taskManager;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly DownloadIndex _index;
     private readonly ConcurrentDictionary<Guid, Job> _jobs = new();
     private readonly SemaphoreSlim _slots;
+    /// <summary>Video ids of album tracks, by album id; albums rarely change, so look each up at most daily.</summary>
+    private readonly ConcurrentDictionary<string, (DateTime Fetched, IReadOnlyList<string> VideoIds)> _albumTracks = new();
+    private readonly SemaphoreSlim _albumLookups = new(4, 4);
 
     public DownloadManager(
         ILogger<DownloadManager> logger,
@@ -39,7 +44,8 @@ public partial class DownloadManager
         YouTubeMusicClient youTubeMusic,
         ILibraryManager libraryManager,
         ITaskManager taskManager,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        DownloadIndex index)
     {
         _logger = logger;
         _ytDlp = ytDlp;
@@ -47,6 +53,7 @@ public partial class DownloadManager
         _libraryManager = libraryManager;
         _taskManager = taskManager;
         _httpClientFactory = httpClientFactory;
+        _index = index;
         var slots = Math.Clamp(Plugin.Instance?.Configuration.MaxConcurrentDownloads ?? 2, 1, 8);
         _slots = new SemaphoreSlim(slots, slots);
     }
@@ -104,6 +111,50 @@ public partial class DownloadManager
         return dto;
     }
 
+    /// <summary>Returns those of <paramref name="videoIds"/> that are already in the download folder.</summary>
+    public IReadOnlyList<string> FindDownloaded(IEnumerable<string> videoIds) =>
+        _index.FindDownloaded(videoIds, GetDownloadDirectory());
+
+    /// <summary>Returns those of <paramref name="albumIds"/> whose tracks are all in the download folder.</summary>
+    public async Task<IReadOnlyList<string>> FindDownloadedAlbumsAsync(IEnumerable<string> albumIds, CancellationToken cancellationToken)
+    {
+        var albums = await Task.WhenAll(albumIds.Distinct().Select(async albumId =>
+            (Id: albumId, VideoIds: await GetAlbumTracksAsync(albumId, cancellationToken).ConfigureAwait(false)))).ConfigureAwait(false);
+        var downloaded = FindDownloaded(albums.SelectMany(album => album.VideoIds)).ToHashSet();
+        return albums
+            .Where(album => album.VideoIds.Count > 0 && album.VideoIds.All(downloaded.Contains))
+            .Select(album => album.Id)
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<string>> GetAlbumTracksAsync(string albumId, CancellationToken cancellationToken)
+    {
+        if (_albumTracks.TryGetValue(albumId, out var cached) && DateTime.UtcNow - cached.Fetched < AlbumTracksLifetime)
+        {
+            return cached.VideoIds;
+        }
+
+        // Don't hit YouTube Music with dozens of requests at once when a client opens an artist
+        await _albumLookups.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var album = await GetAlbumAsync(albumId, cancellationToken).ConfigureAwait(false);
+            if (album == null)
+            {
+                return [];
+            }
+
+            // Unavailable tracks can't be downloaded, so they don't count
+            var videoIds = album.Tracks.Select(track => track.VideoId).OfType<string>().ToList();
+            _albumTracks[albumId] = (DateTime.UtcNow, videoIds);
+            return videoIds;
+        }
+        finally
+        {
+            _albumLookups.Release();
+        }
+    }
+
     public DownloadJobDto? GetJob(Guid id, Guid userId) =>
         _jobs.TryGetValue(id, out var job) && job.UserId == userId ? job.Dto : null;
 
@@ -127,6 +178,7 @@ public partial class DownloadManager
             }
 
             job.Dto.Path = target;
+            _index.Add(song.VideoId, target);
             job.Dto.State = DownloadState.Importing;
             job.Dto.Message = "Saved to " + target + ", scanning library";
             _logger.LogInformation("Downloaded {VideoId} to {Path}", song.VideoId, target);

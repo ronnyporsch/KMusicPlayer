@@ -11,6 +11,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<YtDlpService>();
         serviceCollection.AddSingleton<YouTubeMusicClient>();
+        serviceCollection.AddSingleton<DownloadIndex>();
         serviceCollection.AddSingleton<DownloadManager>();
     }
 }

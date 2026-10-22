@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Security.Claims;
@@ -158,6 +159,19 @@ public class KMusicPlayerController : ControllerBase
             return Problem(e.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
     }
+
+    /// <summary>
+    /// Returns those of the given video ids that are already in the library's download folder, also ones
+    /// downloaded before the server restarted. Lookups are cheap; the folder's tags are read in the background.
+    /// </summary>
+    [HttpPost("YouTube/Downloaded")]
+    public ActionResult<IReadOnlyList<string>> GetDownloaded([FromBody] List<string> videoIds) =>
+        Ok(_downloads.FindDownloaded(videoIds.Where(YtDlpService.IsValidVideoId).Take(500)));
+
+    /// <summary>Returns those of the given album ids whose tracks are all in the library's download folder.</summary>
+    [HttpPost("YouTube/Albums/Downloaded")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetDownloadedAlbums([FromBody] List<string> albumIds, CancellationToken cancellationToken) =>
+        Ok(await _downloads.FindDownloadedAlbumsAsync(albumIds.Where(YouTubeMusicClient.IsValidAlbumId).Take(200), cancellationToken).ConfigureAwait(false));
 
     [HttpGet("Downloads")]
     public ActionResult<IReadOnlyList<DownloadJobDto>> GetDownloads() => Ok(_downloads.GetJobs(UserId));

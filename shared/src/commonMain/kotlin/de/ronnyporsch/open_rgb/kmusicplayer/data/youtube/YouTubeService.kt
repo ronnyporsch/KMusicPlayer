@@ -40,6 +40,8 @@ sealed class DownloadStatus {
     data object InProgress : DownloadStatus()
     data class Done(val message: String) : DownloadStatus()
     data class Failed(val message: String) : DownloadStatus()
+    /** Downloaded before, e.g. in an earlier session or by another client. */
+    data object InLibrary : DownloadStatus()
 }
 
 /** A YouTube Music artist page; ids carry [YOUTUBE_SONG_ID_PREFIX]. */
@@ -77,7 +79,8 @@ class YouTubeService(private val connection: MusicServerConnection) {
         return YouTubeCapabilities(available = server != null, canDownload = server?.canDownload == true)
     }
 
-    suspend fun searchSongs(query: String): List<Song> = connection.jellyfinApi.searchYouTube(query).map { it.toSong() }
+    suspend fun searchSongs(query: String): List<Song> =
+        connection.jellyfinApi.searchYouTube(query).map { it.toSong() }.also(::checkDownloaded)
 
     suspend fun searchArtists(query: String): List<Artist> = connection.jellyfinApi.searchYouTubeArtists(query).map {
         Artist(id = YOUTUBE_SONG_ID_PREFIX + it.id, name = it.name, coverArtId = it.thumbnailUrl)
@@ -93,14 +96,40 @@ class YouTubeService(private val connection: MusicServerConnection) {
             // The header image is a wide banner; a square crop of it fits the artist header
             info = ArtistInfo(biography = page.description, largeImageUrl = page.thumbnailUrl?.let { resizeYouTubeThumbnail(it, 544) }),
             albums = page.albums.map { it.toAlbum(artist) },
-            songs = page.songs.map { it.toSong() },
+            songs = page.songs.map { it.toSong() }.also(::checkDownloaded),
         )
     }
 
     /** [albumId] is a YouTube Music album id, i.e. with [YOUTUBE_SONG_ID_PREFIX]. */
     suspend fun getAlbum(albumId: String): Album {
         val browseId = albumId.youTubeId ?: throw IllegalArgumentException("Not a YouTube Music album: $albumId")
-        return connection.jellyfinApi.getYouTubeAlbum(browseId).toAlbum()
+        return connection.jellyfinApi.getYouTubeAlbum(browseId).toAlbum().also { checkDownloaded(it.songs) }
+    }
+
+    /** Marks those of [songs] that are already in the server's library, so they show as downloaded. */
+    private fun checkDownloaded(songs: List<Song>) {
+        if (!currentCapabilities.canDownload) return
+        val videoIds = songs.mapNotNull { song -> song.youTubeVideoId?.takeIf { _downloads.value[song.id] == null } }
+        if (videoIds.isEmpty()) return
+        scope.launch {
+            try {
+                for (videoId in connection.jellyfinApi.getDownloadedYouTube(videoIds)) {
+                    val songId = YOUTUBE_SONG_ID_PREFIX + videoId
+                    if (_downloads.value[songId] == null) setStatus(songId, DownloadStatus.InLibrary)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Only informational
+            }
+        }
+    }
+
+    /** Ids of those of [albums] (YouTube Music ones) whose songs are all in the server's library. */
+    suspend fun downloadedAlbumIds(albums: List<Album>): Set<String> {
+        val browseIds = albums.mapNotNull { it.id.youTubeId }
+        if (browseIds.isEmpty()) return emptySet()
+        return connection.jellyfinApi.getDownloadedYouTubeAlbums(browseIds).mapTo(mutableSetOf()) { YOUTUBE_SONG_ID_PREFIX + it }
     }
 
     /** Codec and bitrate of the stream a download of [song] would get, or null if unknown. */
@@ -115,7 +144,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
         scope.launch {
             for (song in songs) {
                 val status = _downloads.value[song.id]
-                if (status == DownloadStatus.InProgress || status is DownloadStatus.Done) continue
+                if (status == DownloadStatus.InProgress || status is DownloadStatus.Done || status == DownloadStatus.InLibrary) continue
                 setStatus(song.id, DownloadStatus.InProgress)
                 try {
                     val job = connection.jellyfinApi.requestDownload(song.toDto())
