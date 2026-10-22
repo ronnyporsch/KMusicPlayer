@@ -1,5 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.FavoriteButton
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -146,6 +148,7 @@ fun AlbumDetailScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Button(
                             onClick = { viewModel.onEvent(AlbumDetailEvent.PlayAll) },
@@ -173,6 +176,8 @@ fun AlbumDetailScreen(
                                 modifier = Modifier.weight(1f).height(44.dp),
                             )
                         }
+
+                        FavoriteButton(FavoriteKind.Album, album.id)
                     }
                 }
 
@@ -189,6 +194,7 @@ fun AlbumDetailScreen(
                             isSelected = song.id in state.selectedSongIds,
                             isPlaying = currentSongId == song.id,
                             audioFormat = song.libraryFormat(state.libraryFormats),
+                            showFavorite = true,
                             trailingContent = if (state.isYouTube && state.canDownload) {
                                 {
                                     YouTubeDownloadButton(state.downloads[song.id]) {

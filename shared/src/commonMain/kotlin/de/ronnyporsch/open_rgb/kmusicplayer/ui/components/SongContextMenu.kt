@@ -6,6 +6,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -13,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
@@ -76,6 +79,8 @@ fun SongContextMenu(
     // The menu forgets the songs when it closes, but the dialog outlives it
     var dialogSongs by remember { mutableStateOf(emptyList<Song>()) }
     val playlists by editor.playlists.collectAsState()
+    val favorites = LocalFavorites.current
+    val favoriteIds by (favorites?.ids ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
 
     LaunchedEffect(expanded) {
         if (!expanded) showPlaylists = false
@@ -92,6 +97,23 @@ fun SongContextMenu(
             HorizontalDivider()
         }
         if (!showPlaylists) {
+            if (favorites != null) {
+                val favoriteSongs = songs.filter { favorites.canBeFavorite(it.id) }
+                if (favoriteSongs.isNotEmpty()) {
+                    // Adds all unless all of them are favorites already
+                    val add = favoriteSongs.any { it.id !in favoriteIds }
+                    DropdownMenuItem(
+                        text = { Text(if (add) "Add to favorites" else "Remove from favorites") },
+                        leadingIcon = {
+                            Icon(if (add) Icons.Default.FavoriteBorder else Icons.Default.Favorite, contentDescription = null)
+                        },
+                        onClick = {
+                            favoriteSongs.forEach { favorites.set(FavoriteKind.Song, it.id, add) }
+                            onDismiss()
+                        },
+                    )
+                }
+            }
             DropdownMenuItem(
                 text = { Text("Add to playlist") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null) },

@@ -1,5 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.FavoriteButton
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -100,6 +102,7 @@ fun ArtistAlbumsScreen(
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     ArtistHeader(
+                        artistId = state.artistId,
                         artistName = state.artistName,
                         imageUrl = state.largeImageUrl,
                         biography = state.biography,
@@ -209,6 +212,7 @@ fun ArtistAlbumsScreen(
                                 showAlbum = true,
                                 showArtist = false,
                                 audioFormat = song.libraryFormat(state.libraryFormats),
+                                showFavorite = true,
                                 trailingContent = if (state.isYouTube && state.canDownload) {
                                     {
                                         YouTubeDownloadButton(state.downloads[song.id]) {
@@ -228,6 +232,7 @@ fun ArtistAlbumsScreen(
 
 @Composable
 private fun ArtistHeader(
+    artistId: String?,
     artistName: String,
     imageUrl: String?,
     biography: String?,
@@ -254,6 +259,8 @@ private fun ArtistHeader(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.collapsingHeaderTitle(headerState),
         )
+
+        FavoriteButton(FavoriteKind.Artist, artistId)
 
         if (!biography.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
@@ -298,12 +305,16 @@ private fun AlbumCard(album: Album, downloaded: Boolean, onClick: () -> Unit) {
 
         Spacer(Modifier.height(8.dp))
 
-        Text(
-            text = album.name,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = album.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            FavoriteButton(FavoriteKind.Album, album.id, Modifier.size(28.dp), iconSize = 18.dp)
+        }
 
         Text(
             text = listOfNotNull(album.releaseType, album.year).joinToString(" \u2022 "),

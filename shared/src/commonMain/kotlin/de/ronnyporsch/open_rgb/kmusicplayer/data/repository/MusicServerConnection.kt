@@ -56,6 +56,9 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
 
     val repository = OfflineMusicRepository(online, PlaylistCache(::serverKey), downloads, songFiles)
 
+    /** The user's favorite songs, albums and artists on the connected server. */
+    val favorites = Favorites(online)
+
     /** Identifies the saved server for the offline data. */
     private fun serverKey(): String = settingsHolder.settings.value.let { "${it.serverType}|${it.serverUrl}|${it.username}" }
 
@@ -113,6 +116,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
             settingsHolder.update { copy(jellyfinDeviceId = deviceId) }
         }
         _connections.value++
+        favorites.reload()
         downloads.syncAll()
     }
 
@@ -168,6 +172,15 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
                     ?: jellyfinApi.getYouTubeStreamInfo(videoId)?.let { AudioStreamInfo(it.codec, it.bitRate) }
             }
         }
+
+        override suspend fun getFavorites() = active.getFavorites()
+
+        override suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit> =
+            if (id.isYouTubeId) {
+                Result.failure(IllegalArgumentException("Only library items can be favorites"))
+            } else {
+                active.setFavorite(kind, id, favorite)
+            }
 
         override fun getStreamUrl(songId: String): String {
             val videoId = songId.takeIf { it.startsWith(YOUTUBE_SONG_ID_PREFIX) }?.removePrefix(YOUTUBE_SONG_ID_PREFIX)

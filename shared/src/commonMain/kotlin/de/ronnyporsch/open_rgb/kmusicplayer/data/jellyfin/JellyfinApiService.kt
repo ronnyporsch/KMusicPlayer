@@ -118,6 +118,17 @@ class JellyfinApiService {
         }.ensureSuccess()
     }
 
+    /** Marks an item (song, album, artist) as favorite of the user or unmarks it. */
+    suspend fun setFavorite(itemId: String, favorite: Boolean) {
+        val url = "${baseUrl()}/UserFavoriteItems/$itemId"
+        val response = if (favorite) {
+            client.post(url) { authorize(); parameter("userId", userId) }
+        } else {
+            client.delete(url) { authorize(); parameter("userId", userId) }
+        }
+        response.ensureSuccess()
+    }
+
     /** Scans all libraries. Requires an administrator. */
     suspend fun refreshLibrary(): Boolean =
         client.post("${baseUrl()}/Library/Refresh") { authorize() }.status.isSuccess()

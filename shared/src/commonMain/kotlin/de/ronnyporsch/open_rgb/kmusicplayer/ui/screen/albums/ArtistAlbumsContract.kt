@@ -6,6 +6,8 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 
 data class ArtistAlbumsState(
+    /** Null while the artist is only known by name (and if it isn't in the library). */
+    val artistId: String? = null,
     val artistName: String = "",
     val coverArtId: String? = null,
     val biography: String? = null,

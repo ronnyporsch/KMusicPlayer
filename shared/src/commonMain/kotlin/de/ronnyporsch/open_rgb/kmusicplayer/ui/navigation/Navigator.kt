@@ -10,6 +10,7 @@ sealed class Screen {
     data class ArtistAlbums(val artistId: String?, val artistName: String) : Screen()
     data class AlbumSongs(val albumId: String) : Screen()
     data class PlaylistSongs(val playlistId: String) : Screen()
+    data object FavoriteSongs : Screen()
     data object Player : Screen()
     data object Search : Screen()
     data object Settings : Screen()

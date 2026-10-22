@@ -1,5 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.FavoriteButton
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -152,7 +154,7 @@ fun MiniPlayer(
 
                 Spacer(Modifier.width(12.dp))
 
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     HoverLinkText(
                         text = song.title,
                         onClick = song.albumId.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
@@ -176,6 +178,8 @@ fun MiniPlayer(
                         )
                     }
                 }
+
+                FavoriteButton(FavoriteKind.Song, song.id, iconSize = 20.dp)
             }
 
             Row(

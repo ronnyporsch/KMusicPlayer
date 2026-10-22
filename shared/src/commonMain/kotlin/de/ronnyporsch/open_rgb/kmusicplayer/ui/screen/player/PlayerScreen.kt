@@ -1,5 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.FavoriteButton
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,6 +93,7 @@ fun PlayerScreen(
                     tint = MaterialTheme.colorScheme.onBackground,
                 )
             }
+            FavoriteButton(FavoriteKind.Song, song?.id)
         }
 
         // Songs without lyrics show their cover; the lyrics come back for the next song that has some

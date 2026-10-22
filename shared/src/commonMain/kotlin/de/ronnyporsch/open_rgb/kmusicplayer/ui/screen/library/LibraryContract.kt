@@ -6,9 +6,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 
-enum class LibrarySidebarTab { Playlists, Artists, Albums }
+enum class LibrarySidebarTab { Playlists, Artists, Favorites }
 
-enum class LibraryDetailView { Artists, Albums, Playlists }
+enum class LibraryDetailView { Artists, Albums, Playlists, FavoriteSongs }
 
 data class LibraryState(
     val selectedSidebarTab: LibrarySidebarTab = LibrarySidebarTab.Playlists,
@@ -22,14 +22,12 @@ data class LibraryState(
     val selectedArtistLargeImageUrl: String? = null,
     val selectedArtistSongs: List<Song> = emptyList(),
     val selectedArtistSongsLoading: Boolean = false,
-    val albums: List<Album> = emptyList(),
     val selectedAlbumId: String? = null,
     val selectedAlbum: Album? = null,
     val playlists: List<Playlist> = emptyList(),
     val selectedPlaylistId: String? = null,
     val selectedPlaylist: Playlist? = null,
     val selectedPlaylistLoading: Boolean = false,
-    val albumsLoading: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),
@@ -39,6 +37,9 @@ data class LibraryState(
     val canDownloadPlaylists: Boolean = false,
     /** Downloaded playlists, by id. */
     val playlistDownloads: Map<String, PlaylistDownloadStatus> = emptyMap(),
+    val favoriteArtists: List<Artist> = emptyList(),
+    val favoriteAlbums: List<Album> = emptyList(),
+    val favoriteSongs: List<Song> = emptyList(),
 )
 
 sealed class LibraryEvent {
@@ -75,6 +76,11 @@ sealed class LibraryEvent {
     /** Ctrl-click: adds the song to or removes it from the selection. */
     data class SongSelectionToggled(val song: Song) : LibraryEvent()
     data class SongArtistClicked(val artistName: String) : LibraryEvent()
+    /** Shows the favorite songs in the detail pane. */
+    data object FavoriteSongsClicked : LibraryEvent()
+    data object OpenFavoriteSongsScreen : LibraryEvent()
+    data object PlayAllFavoriteSongs : LibraryEvent()
+    data object ShuffleAllFavoriteSongs : LibraryEvent()
     data class SongAlbumClicked(val albumId: String) : LibraryEvent()
 }
 
@@ -82,5 +88,6 @@ sealed class LibraryEffect {
     data class NavigateToArtist(val artistId: String?, val artistName: String) : LibraryEffect()
     data class NavigateToAlbum(val albumId: String) : LibraryEffect()
     data class NavigateToPlaylist(val playlistId: String) : LibraryEffect()
+    data object NavigateToFavoriteSongs : LibraryEffect()
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : LibraryEffect()
 }

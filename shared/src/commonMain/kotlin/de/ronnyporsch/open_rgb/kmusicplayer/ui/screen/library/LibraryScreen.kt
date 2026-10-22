@@ -1,5 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library
 
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.FavoriteButton
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.audioFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,6 +34,11 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FAVORITE_SONGS_TITLE
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsList
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoritesImage
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import kotlinx.coroutines.launch
 
 @Composable
@@ -243,12 +250,24 @@ private fun LibrarySidebar(
                     Tab(
                         selected = state.selectedSidebarTab == tab,
                         onClick = { viewModel.onEvent(LibraryEvent.SidebarTabSelected(tab)) },
-                        text = {
-                            Text(
-                                tab.name,
-                                fontWeight = if (state.selectedSidebarTab == tab) FontWeight.Bold else FontWeight.Normal,
-                            )
+                        text = if (tab == LibrarySidebarTab.Favorites) null else {
+                            {
+                                Text(
+                                    tab.name,
+                                    fontWeight = if (state.selectedSidebarTab == tab) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            }
                         },
+                        // Four labels don't fit the sidebar
+                        icon = if (tab == LibrarySidebarTab.Favorites) {
+                            {
+                                Icon(
+                                    Icons.Default.Favorite,
+                                    contentDescription = "Favorites",
+                                    tint = if (state.selectedSidebarTab == tab) SpotifyGreen else SpotifyLightGray,
+                                )
+                            }
+                        } else null,
                     )
                 }
             }
@@ -268,16 +287,24 @@ private fun LibrarySidebar(
                     state = viewModel.artistSidebarState,
                     modifier = Modifier.fillMaxSize(),
                 )
-                LibrarySidebarTab.Albums -> AlbumSidebar(
-                    albums = state.albums,
-                    selectedAlbumId = state.selectedAlbumId,
+                LibrarySidebarTab.Favorites -> FavoritesSidebar(
+                    state = state,
+                    onSongsClick = {
+                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenFavoriteSongsScreen else LibraryEvent.FavoriteSongsClicked)
+                    },
+                    onArtistClick = {
+                        viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
+                    },
+                    onArtistDoubleClick = if (openItemScreens) null else {
+                        { viewModel.onEvent(LibraryEvent.ArtistDoubleClicked(it)) }
+                    },
                     onAlbumClick = {
                         viewModel.onEvent(if (openItemScreens) LibraryEvent.OpenAlbumScreen(it) else LibraryEvent.AlbumClicked(it))
                     },
                     onAlbumDoubleClick = if (openItemScreens) null else {
                         { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) }
                     },
-                    state = viewModel.albumSidebarState,
+                    listState = viewModel.favoritesSidebarState,
                     modifier = Modifier.fillMaxSize(),
                 )
                 LibrarySidebarTab.Playlists -> PlaylistSidebar(
@@ -352,6 +379,37 @@ private fun LibraryDetailPane(
             onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
             contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
+        LibraryDetailView.FavoriteSongs -> Surface(
+            modifier = modifier,
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(0.dp),
+        ) {
+            val headerState = rememberCollapsingHeaderState(viewModel.favoriteSongsState)
+            Box(Modifier.fillMaxSize()) {
+                FavoriteSongsList(
+                    songs = state.favoriteSongs,
+                    state = viewModel.favoriteSongsState,
+                    headerState = headerState,
+                    onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
+                    onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
+                    isSelected = { it in state.selectedSongIds },
+                    isPlaying = { it == currentSongId },
+                    onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
+                    onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
+                    onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllFavoriteSongs) },
+                    onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllFavoriteSongs) },
+                    onDragStart = onDragStart,
+                    onDragEnd = onDragEnd,
+                    onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+                    contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
+                )
+                CollapsedHeaderOverlay(
+                    state = headerState,
+                    title = FAVORITE_SONGS_TITLE,
+                    image = { modifier -> FavoritesImage(modifier) },
+                )
+            }
+        }
         LibraryDetailView.Playlists -> PlaylistDetailPane(
             playlist = state.selectedPlaylist,
             isLoading = state.selectedPlaylistLoading,
@@ -428,47 +486,6 @@ private fun ArtistSplitView(
 }
 
 @Composable
-private fun AlbumSplitView(
-    state: LibraryState,
-    viewModel: LibraryViewModel,
-    currentSongId: String?,
-    onDragStart: (Song) -> Unit,
-    onDragEnd: () -> Unit,
-) {
-    Row(Modifier.fillMaxSize()) {
-        AlbumSidebar(
-            albums = state.albums,
-            selectedAlbumId = state.selectedAlbumId,
-            onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumClicked(it)) },
-            onAlbumDoubleClick = { viewModel.onEvent(LibraryEvent.AlbumDoubleClicked(it)) },
-            state = viewModel.albumSidebarState,
-            modifier = Modifier
-                .width(280.dp)
-                .fillMaxHeight(),
-        )
-
-        Spacer(Modifier.width(16.dp))
-
-        AlbumDetailPane(
-            album = state.selectedAlbum,
-            onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
-            onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
-            isSelected = { it in state.selectedSongIds },
-            isPlaying = { it == currentSongId },
-            onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
-            onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllAlbumSongs) },
-            onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllAlbumSongs) },
-            onDragStart = onDragStart,
-            onDragEnd = onDragEnd,
-            state = viewModel.albumDetailState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-        )
-    }
-}
-
-@Composable
 private fun ArtistSidebar(
     artists: List<Artist>,
     selectedArtistId: String?,
@@ -477,7 +494,6 @@ private fun ArtistSidebar(
     state: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    val coverArt = LocalCoverArtUrlProvider.current
     val scope = rememberCoroutineScope()
 
     Column(
@@ -493,42 +509,12 @@ private fun ArtistSidebar(
                         modifier = Modifier.weight(1f)
                     ) {
                         itemsIndexed(artists, key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" }) { _, artist ->
-                            val isSelected = artist.id == selectedArtistId
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(0.dp))
-                                    .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
-                                    .combinedClickable(
-                                        onClick = { onArtistClick(artist) },
-                                        onDoubleClick = onArtistDoubleClick?.let { { it(artist) } }
-                                    )
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                ArtistImage(
-                                    url = coverArt.getUrl(artist.coverArtId),
-                                    artistName = artist.name,
-                                    modifier = Modifier.size(44.dp),
-                                )
-
-                                Spacer(Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = artist.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        text = "${artist.albumCount} album${if (artist.albumCount != 1) "s" else ""}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
+                            ArtistListItem(
+                                artist = artist,
+                                isSelected = artist.id == selectedArtistId,
+                                onClick = { onArtistClick(artist) },
+                                onDoubleClick = onArtistDoubleClick?.let { { it(artist) } },
+                            )
                         }
                     }
 
@@ -621,6 +607,7 @@ private fun ArtistDetailPane(
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         ArtistHeader(
+                            artistId = artist.id,
                             artistName = artist.name,
                             imageUrl = largeImageUrl,
                             biography = biography,
@@ -728,6 +715,7 @@ private fun ArtistDetailPane(
                                 showAlbum = true,
                                 showArtist = false,
                                 audioFormat = song.audioFormat,
+                                showFavorite = true,
                             )
                         }
                     }
@@ -742,99 +730,6 @@ private fun ArtistDetailPane(
         }
     }
 }
-
-@Composable
-private fun AlbumSidebar(
-    albums: List<Album>,
-    selectedAlbumId: String?,
-    onAlbumClick: (Album) -> Unit,
-    onAlbumDoubleClick: ((Album) -> Unit)?,
-    state: LazyListState,
-    modifier: Modifier = Modifier,
-) {
-    val coverArt = LocalCoverArtUrlProvider.current
-    val scope = rememberCoroutineScope()
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(12.dp),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = state,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        itemsIndexed(albums, key = { index, album -> "${album.id.ifEmpty { "no-id" }}::${album.name}::${album.artist}::${album.coverArtId ?: "no-art"}::$index" }) { _, album ->
-                            val isSelected = album.id == selectedAlbumId
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(0.dp))
-                                    .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
-                                    .combinedClickable(
-                                        onClick = { onAlbumClick(album) },
-                                        onDoubleClick = onAlbumDoubleClick?.let { { it(album) } }
-                                    )
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                CoverArtImage(
-                                    url = coverArt.getUrl(album.coverArtId),
-                                    modifier = Modifier.size(44.dp),
-                                    cornerRadius = 0.dp,
-                                    placeholderFontSize = 18.sp,
-                                )
-
-                                Spacer(Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = album.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    val details = buildString {
-                                        append(album.artist.ifBlank { "Unknown artist" })
-                                        if (album.songCount > 0) {
-                                            append(" \u2022 ")
-                                            append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
-                                        }
-                                    }
-                                    Text(
-                                        text = details,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    AlphabetScroller(
-                        alphabet = albums.mapNotNull { it.name.firstOrNull()?.uppercaseChar() }.distinct().sorted(),
-                        onCharClicked = { char ->
-                            val index = albums.indexOfFirst { it.name.firstOrNull()?.uppercaseChar() == char }
-                            if (index != -1) {
-                                scope.launch { state.animateScrollToItem(index) }
-                            }
-                        }
-                    )
-                }
-
-                VerticalScrollbar(
-                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-                    state = state
-                )
-            }
-        }
-    }
 
     @Composable
 private fun AlbumDetailPane(
@@ -949,6 +844,7 @@ private fun AlbumDetailPane(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Button(
                                 onClick = onPlayAll,
@@ -967,6 +863,8 @@ private fun AlbumDetailPane(
                             ) {
                                 Text("\u21C6  Shuffle", fontWeight = FontWeight.Bold)
                             }
+
+                            FavoriteButton(FavoriteKind.Album, album.id)
                         }
                     }
 
@@ -984,6 +882,7 @@ private fun AlbumDetailPane(
                             isSelected = isSelected(song.id),
                             isPlaying = isPlaying(song.id),
                             audioFormat = song.audioFormat,
+                            showFavorite = true,
                         )
                     }
                 }
@@ -1000,6 +899,7 @@ private fun AlbumDetailPane(
 
 @Composable
 private fun ArtistHeader(
+    artistId: String?,
     artistName: String,
     imageUrl: String?,
     biography: String?,
@@ -1026,6 +926,8 @@ private fun ArtistHeader(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.collapsingHeaderTitle(headerState),
         )
+
+        FavoriteButton(FavoriteKind.Artist, artistId)
 
         if (!biography.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
@@ -1057,12 +959,16 @@ private fun AlbumCard(album: Album, onClick: () -> Unit) {
 
         Spacer(Modifier.height(8.dp))
 
-        Text(
-            text = album.name,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = album.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            FavoriteButton(FavoriteKind.Album, album.id, Modifier.size(28.dp), iconSize = 18.dp)
+        }
 
         Text(
             text = album.year?.toString() ?: "",
@@ -1420,3 +1326,182 @@ private fun PlaylistDetailPane(
     }
 }
 
+@Composable
+private fun ArtistListItem(artist: Artist, isSelected: Boolean, onClick: () -> Unit, onDoubleClick: (() -> Unit)?) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(0.dp))
+            .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
+            .combinedClickable(
+                onClick = onClick,
+                onDoubleClick = onDoubleClick,
+            )
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ArtistImage(
+            url = coverArt.getUrl(artist.coverArtId),
+            artistName = artist.name,
+            modifier = Modifier.size(44.dp),
+        )
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${artist.albumCount} album${if (artist.albumCount != 1) "s" else ""}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumListItem(album: Album, isSelected: Boolean, onClick: () -> Unit, onDoubleClick: (() -> Unit)?) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(0.dp))
+            .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
+            .combinedClickable(
+                onClick = onClick,
+                onDoubleClick = onDoubleClick,
+            )
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CoverArtImage(
+            url = coverArt.getUrl(album.coverArtId),
+            modifier = Modifier.size(44.dp),
+            cornerRadius = 0.dp,
+            placeholderFontSize = 18.sp,
+        )
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = album.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val details = buildString {
+                append(album.artist.ifBlank { "Unknown artist" })
+                if (album.songCount > 0) {
+                    append(" \u2022 ")
+                    append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
+                }
+            }
+            Text(
+                text = details,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Favorite songs (as one entry that opens them), artists and albums. */
+@Composable
+private fun FavoritesSidebar(
+    state: LibraryState,
+    onSongsClick: () -> Unit,
+    onArtistClick: (Artist) -> Unit,
+    onArtistDoubleClick: ((Artist) -> Unit)?,
+    onAlbumClick: (Album) -> Unit,
+    onAlbumDoubleClick: ((Album) -> Unit)?,
+    listState: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.padding(12.dp)) {
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "songs") {
+                val songCount = state.favoriteSongs.size
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (state.activeDetailView == LibraryDetailView.FavoriteSongs) SpotifyGreen.copy(alpha = 0.16f)
+                            else Color.Transparent
+                        )
+                        .clickable(onClick = onSongsClick)
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FavoritesImage(Modifier.size(44.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = FAVORITE_SONGS_TITLE,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "$songCount song${if (songCount != 1) "s" else ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            if (state.favoriteArtists.isNotEmpty()) {
+                item(key = "artists-header") { FavoritesSectionTitle("Artists") }
+                items(state.favoriteArtists, key = { "artist:${it.id}" }) { artist ->
+                    ArtistListItem(
+                        artist = artist,
+                        isSelected = state.activeDetailView == LibraryDetailView.Artists && artist.id == state.selectedArtistId,
+                        onClick = { onArtistClick(artist) },
+                        onDoubleClick = onArtistDoubleClick?.let { { it(artist) } },
+                    )
+                }
+            }
+
+            if (state.favoriteAlbums.isNotEmpty()) {
+                item(key = "albums-header") { FavoritesSectionTitle("Albums") }
+                items(state.favoriteAlbums, key = { "album:${it.id}" }) { album ->
+                    AlbumListItem(
+                        album = album,
+                        isSelected = state.activeDetailView == LibraryDetailView.Albums && album.id == state.selectedAlbumId,
+                        onClick = { onAlbumClick(album) },
+                        onDoubleClick = onAlbumDoubleClick?.let { { it(album) } },
+                    )
+                }
+            }
+        }
+
+        VerticalScrollbar(
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+            state = listState,
+        )
+    }
+}
+
+@Composable
+private fun FavoritesSectionTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 10.dp, top = 8.dp),
+    )
+}

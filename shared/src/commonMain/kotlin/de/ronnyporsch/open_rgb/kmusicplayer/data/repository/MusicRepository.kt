@@ -49,6 +49,10 @@ interface MusicRepository {
 
     /** Codec and bitrate of the song's file (for YouTube Music songs: of the stream); null if unknown. */
     suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?>
+
+    /** The user's favorite artists, albums and songs. */
+    suspend fun getFavorites(): Result<SearchResults>
+    suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit>
     fun getStreamUrl(songId: String): String
 
     /** URL of the song's original file, e.g. for downloading it. */
@@ -56,6 +60,7 @@ interface MusicRepository {
     fun getCoverArtUrl(coverArtId: String, size: Int = 300): String
 }
 
+/** Artists, albums and songs, e.g. of a search or the favorites. */
 data class SearchResults(
     val artists: List<Artist> = emptyList(),
     val albums: List<Album> = emptyList(),
@@ -217,6 +222,27 @@ class MusicRepositoryImpl(
 
     // Subsonic song lists always carry suffix and bitrate
     override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> = Result.success(song.audioFormat)
+
+    override suspend fun getFavorites(): Result<SearchResults> = runCatching {
+        val body = api.getStarred2().subsonicResponse
+        if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error loading favorites")
+        val starred = body.starred2 ?: return@runCatching SearchResults()
+        SearchResults(
+            artists = starred.artist.map { it.toDomain() },
+            albums = starred.album.map { it.toDomain() },
+            songs = starred.song.map { it.toDomain() },
+        )
+    }
+
+    override suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit> = runCatching {
+        val idParameter = when (kind) {
+            FavoriteKind.Song -> "id"
+            FavoriteKind.Album -> "albumId"
+            FavoriteKind.Artist -> "artistId"
+        }
+        val body = api.setStarred(idParameter, id, favorite).subsonicResponse
+        if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error updating favorite")
+    }
 
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId)
 

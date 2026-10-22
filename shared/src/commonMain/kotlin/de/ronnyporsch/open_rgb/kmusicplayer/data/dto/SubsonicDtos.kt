@@ -22,6 +22,7 @@ data class SubsonicResponseBody(
     val artistInfo2: ArtistInfo2Dto? = null,
     val lyricsList: LyricsListDto? = null,
     val lyrics: LyricsDto? = null,
+    val starred2: Starred2Dto? = null,
 )
 
 @Serializable
@@ -143,6 +144,14 @@ data class ArtistInfo2Dto(
 
 @Serializable
 data class SearchResult3Dto(
+    val artist: List<ArtistDto> = emptyList(),
+    val album: List<AlbumDto> = emptyList(),
+    val song: List<SongDto> = emptyList(),
+)
+
+/** Favorites of getStarred2. */
+@Serializable
+data class Starred2Dto(
     val artist: List<ArtistDto> = emptyList(),
     val album: List<AlbumDto> = emptyList(),
     val song: List<SongDto> = emptyList(),

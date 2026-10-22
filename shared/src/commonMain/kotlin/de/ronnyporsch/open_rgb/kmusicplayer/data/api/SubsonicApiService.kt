@@ -165,6 +165,20 @@ class SubsonicApiService {
         }.body()
     }
 
+    suspend fun getStarred2(): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getStarred2.view") {
+            addAuthParams()
+        }.body()
+    }
+
+    /** Stars ([star]) or unstars an item; [idParameter] is "id" for songs, "albumId" or "artistId". */
+    suspend fun setStarred(idParameter: String, id: String, star: Boolean): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/${if (star) "star" else "unstar"}.view") {
+            addAuthParams()
+            parameter(idParameter, id)
+        }.body()
+    }
+
     /** Asks the server to rescan its music folders. Requires an admin user on Navidrome. */
     suspend fun startScan(): Boolean {
         val response: SubsonicResponse = client.get("${baseUrl()}/rest/startScan.view") {

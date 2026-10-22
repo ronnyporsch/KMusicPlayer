@@ -11,7 +11,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.util.newestAlbumsFirst
 import de.ronnyporsch.open_rgb.kmusicplayer.util.newestFirst
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.Favorites
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
 
 class LibraryViewModel(
@@ -21,16 +23,18 @@ class LibraryViewModel(
     /** Ids of playlists changed elsewhere, e.g. through the song context menu. */
     playlistChanges: Flow<String> = emptyFlow(),
     private val downloads: PlaylistDownloads? = null,
+    favorites: Favorites? = null,
 ) : MviStore<LibraryState, LibraryEvent, LibraryEffect>(
     LibraryState(isLoading = awaitingConnection, canDownloadPlaylists = downloads?.isSupported == true)
 ) {
 
     val artistSidebarState = LazyListState()
     val artistDetailState = LazyGridState()
-    val albumSidebarState = LazyListState()
     val albumDetailState = LazyListState()
     val playlistSidebarState = LazyListState()
     val playlistDetailState = LazyListState()
+    val favoritesSidebarState = LazyListState()
+    val favoriteSongsState = LazyListState()
 
     init {
         if (repository.isConfigured) {
@@ -44,6 +48,20 @@ class LibraryViewModel(
         }
         if (downloads != null) {
             launch { downloads.status.collect { setState { copy(playlistDownloads = it) } } }
+        }
+        if (favorites != null) {
+            // Unmarked favorites disappear right away, before the server confirmed
+            launch {
+                combine(favorites.items, favorites.ids) { items, ids -> items to ids }.collect { (items, ids) ->
+                    setState {
+                        copy(
+                            favoriteArtists = items.artists.filter { it.id in ids },
+                            favoriteAlbums = items.albums.filter { it.id in ids },
+                            favoriteSongs = items.songs.filter { it.id in ids },
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -234,6 +252,7 @@ class LibraryViewModel(
                     LibraryDetailView.Albums -> currentState.selectedAlbum?.songs.orEmpty()
                     LibraryDetailView.Playlists -> currentState.selectedPlaylist?.songs.orEmpty()
                     LibraryDetailView.Artists -> currentState.selectedArtistSongs
+                    LibraryDetailView.FavoriteSongs -> currentState.favoriteSongs
                 }
                 if (songs.isNotEmpty()) {
                     if (getPlatform().isMobile) {
@@ -249,6 +268,7 @@ class LibraryViewModel(
                     LibraryDetailView.Albums -> currentState.selectedAlbum?.songs.orEmpty()
                     LibraryDetailView.Playlists -> currentState.selectedPlaylist?.songs.orEmpty()
                     LibraryDetailView.Artists -> currentState.selectedArtistSongs
+                    LibraryDetailView.FavoriteSongs -> currentState.favoriteSongs
                 }
                 if (songs.isNotEmpty()) {
                     emitEffect(LibraryEffect.PlaySongs(songs, event.index))
@@ -265,6 +285,27 @@ class LibraryViewModel(
             }
             is LibraryEvent.SongAlbumClicked -> {
                 emitEffect(LibraryEffect.NavigateToAlbum(event.albumId))
+            }
+            is LibraryEvent.FavoriteSongsClicked -> setState {
+                copy(
+                    activeDetailView = LibraryDetailView.FavoriteSongs,
+                    selectedArtistId = null,
+                    selectedArtist = null,
+                    selectedAlbumId = null,
+                    selectedAlbum = null,
+                    selectedPlaylistId = null,
+                    selectedPlaylist = null,
+                    selectedPlaylistLoading = false,
+                )
+            }
+            is LibraryEvent.OpenFavoriteSongsScreen -> emitEffect(LibraryEffect.NavigateToFavoriteSongs)
+            is LibraryEvent.PlayAllFavoriteSongs -> {
+                val songs = currentState.favoriteSongs
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
+            }
+            is LibraryEvent.ShuffleAllFavoriteSongs -> {
+                val songs = currentState.favoriteSongs
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
             }
         }
     }
@@ -323,11 +364,8 @@ class LibraryViewModel(
                     ensureDefaultSelection()
                 }
             }
-            LibrarySidebarTab.Albums -> {
-                if (currentState.albums.isEmpty()) {
-                    loadAlbums()
-                }
-            }
+            // Favorites are loaded on connecting and kept up to date by Favorites
+            LibrarySidebarTab.Favorites -> {}
             LibrarySidebarTab.Playlists -> {
                 if (currentState.playlists.isEmpty()) {
                     launch {
@@ -336,39 +374,6 @@ class LibraryViewModel(
                         }
                     }
                 }
-            }
-        }
-    }
-
-    private fun loadAlbums() {
-        if (currentState.albums.isNotEmpty() || currentState.albumsLoading) {
-            return
-        }
-
-        setState { copy(albumsLoading = true, error = null) }
-        launch {
-            val artists = currentState.artists.ifEmpty {
-                repository.getArtists().getOrDefault(emptyList())
-            }
-
-            val albums = coroutineScope {
-                artists
-                    .filter { it.id.isNotEmpty() }
-                    .map { artist ->
-                        async {
-                            repository.getArtistAlbums(artist.id).getOrDefault(emptyList())
-                        }
-                    }
-                    .flatMap { it.await() }
-                    .distinctBy { it.id.ifEmpty { "${it.name}_${it.artist}" } }
-                    .toMutableList()
-            }
-
-            setState {
-                copy(
-                    albums = albums.sortedBy { it.name.lowercase() },
-                    albumsLoading = false,
-                )
             }
         }
     }
@@ -408,23 +413,7 @@ class LibraryViewModel(
                 }
             }
             LibraryDetailView.Albums -> {
-                if (currentState.selectedAlbum == null && currentState.albums.isNotEmpty()) {
-                    val album = currentState.albums.first()
-                    setState {
-                        copy(
-                            selectedAlbum = album,
-                            selectedAlbumId = album.id,
-                            selectedArtistId = null,
-                            selectedArtist = null,
-                            selectedPlaylistId = null,
-                            selectedPlaylist = null,
-                            selectedPlaylistLoading = false,
-                        )
-                    }
-                    if (album.id.isNotEmpty()) {
-                        loadAlbum(album.id)
-                    }
-                } else if (currentState.selectedAlbumId?.isNotEmpty() == true && currentState.selectedAlbum == null) {
+                if (currentState.selectedAlbumId?.isNotEmpty() == true && currentState.selectedAlbum == null) {
                     loadAlbum(currentState.selectedAlbumId!!)
                 }
             }
@@ -435,6 +424,7 @@ class LibraryViewModel(
                     loadPlaylist(playlist.id)
                 }
             }
+            LibraryDetailView.FavoriteSongs -> {}
         }
     }
 

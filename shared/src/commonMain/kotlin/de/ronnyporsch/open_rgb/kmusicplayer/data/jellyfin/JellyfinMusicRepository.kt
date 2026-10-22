@@ -150,6 +150,30 @@ class JellyfinMusicRepository(
         song.audioFormat ?: api.getItem(song.id).toSong().audioFormat
     }
 
+    override suspend fun getFavorites(): Result<SearchResults> = runCatching {
+        // One query returns all three kinds, artists included
+        val items = api.getItems(
+            mapOf(
+                "includeItemTypes" to "Audio,MusicAlbum,MusicArtist",
+                "recursive" to true,
+                "isFavorite" to true,
+                "sortBy" to "SortName",
+                "fields" to "Genres,ChildCount",
+                "enableUserData" to false,
+            )
+        ).items
+        SearchResults(
+            artists = items.filter { it.type == "MusicArtist" }.map { it.toArtist() },
+            albums = items.filter { it.type == "MusicAlbum" }.map { it.toAlbum() },
+            songs = items.filter { it.type == "Audio" }.map { it.toSong() },
+        )
+    }
+
+    override suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit> = runCatching {
+        // Jellyfin marks every kind of item the same way
+        api.setFavorite(id, favorite)
+    }
+
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId, getPlatform().audioContainers)
 
     override fun getDownloadUrl(songId: String): String = api.getOriginalAudioUrl(songId)

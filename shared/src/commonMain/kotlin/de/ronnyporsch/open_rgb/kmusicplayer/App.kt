@@ -44,6 +44,8 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.playlist.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.search.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.KMusicPlayerTheme
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsScreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalFavorites
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.onMouseNavigation
@@ -84,6 +86,7 @@ fun App() {
             awaitingConnection = loggedIn,
             playlistChanges = repository.playlistChanges,
             downloads = connection.downloads,
+            favorites = connection.favorites,
         )
     }
     val searchViewModel = remember { SearchViewModel(repository, youTube) }
@@ -124,9 +127,17 @@ fun App() {
                     navigator.push(Screen.AlbumSongs(effect.albumId))
                 is LibraryEffect.NavigateToPlaylist ->
                     navigator.push(Screen.PlaylistSongs(effect.playlistId))
+                LibraryEffect.NavigateToFavoriteSongs ->
+                    navigator.push(Screen.FavoriteSongs)
                 is LibraryEffect.PlaySongs ->
                     playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
             }
+        }
+    }
+
+    LaunchedEffect(connection) {
+        connection.favorites.errors.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
         }
     }
 
@@ -159,6 +170,7 @@ fun App() {
             LocalCoverArtUrlProvider provides coverArtUrlProvider,
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
+            LocalFavorites provides connection.favorites,
         ) {
         val currentScreen by navigator.currentScreen.collectAsState()
         val playerState by playerViewModel.state.collectAsState()
@@ -198,7 +210,8 @@ fun App() {
                     ) {
                         // These screens draw their own back button in their header
                         val hasOwnBackButton = currentScreen is Screen.ArtistAlbums || currentScreen is Screen.AlbumSongs ||
-                            currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings
+                            currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings ||
+                            currentScreen is Screen.FavoriteSongs
                         if (navigator.canGoBack() && !hasOwnBackButton) {
                             IconButton(onClick = { navigator.pop() }) {
                                 Icon(
@@ -361,6 +374,18 @@ fun App() {
                             viewModel = vm,
                             onBack = { navigator.pop() },
                             currentSongId = playerState.playback.currentSong?.id
+                        )
+                    }
+
+                    is Screen.FavoriteSongs -> {
+                        val libraryState by libraryViewModel.state.collectAsState()
+                        FavoriteSongsScreen(
+                            songs = libraryState.favoriteSongs,
+                            onBack = { navigator.pop() },
+                            onPlay = { songs, startIndex, shuffle -> playSongs(playerViewModel, songs, startIndex, shuffle) },
+                            onArtistClick = { name -> navigator.push(Screen.ArtistAlbums(null, name)) },
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
+                            currentSongId = playerState.playback.currentSong?.id,
                         )
                     }
 

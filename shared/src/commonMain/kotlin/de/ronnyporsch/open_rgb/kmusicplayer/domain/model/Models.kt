@@ -58,6 +58,9 @@ data class Song(
     val codec: String? = null,
 )
 
+/** What kind of item a favorite is; servers mark them through different endpoints. */
+enum class FavoriteKind { Song, Album, Artist }
+
 /** [codec] is a display name such as "Opus" or "AAC", see [codecDisplayName]; [bitRate] is in kbps. */
 data class AudioStreamInfo(val codec: String?, val bitRate: Int?)
 

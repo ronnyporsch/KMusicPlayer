@@ -17,7 +17,7 @@ class ArtistAlbumsViewModel(
     private val repository: MusicRepository,
     private val youTube: YouTubeService,
 ) : MviStore<ArtistAlbumsState, ArtistAlbumsEvent, ArtistAlbumsEffect>(
-    ArtistAlbumsState(artistName = artistName, isYouTube = artistId?.isYouTubeId == true)
+    ArtistAlbumsState(artistId = artistId, artistName = artistName, isYouTube = artistId?.isYouTubeId == true)
 ) {
 
     private var resolvedArtistId: String? = artistId
@@ -104,6 +104,7 @@ class ArtistAlbumsViewModel(
                 .onSuccess { artist ->
                     if (artist != null) {
                         resolvedArtistId = artist.id
+                        setState { copy(artistId = artist.id) }
                         loadAlbums(artist.id)
                         loadArtistInfo(artist.id)
                     } else {
