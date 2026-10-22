@@ -46,7 +46,11 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.KMusicPlayerTheme
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsScreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalFavorites
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.DuplicateSongsDialog
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDragAndDrop
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragAndDrop
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragOverlay
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.onMouseNavigation
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
@@ -91,6 +95,8 @@ fun App() {
     }
     val searchViewModel = remember { SearchViewModel(repository, youTube) }
     val coverArtUrlProvider = remember { CoverArtUrlProvider(repository) }
+    // Touch drags scroll, so songs can only be dragged with a mouse
+    val songDragAndDrop = remember { if (getPlatform().isMobile) null else SongDragAndDrop() }
 
     // (Re)load the library whenever a server got connected, it may be a different one
     LaunchedEffect(connection) {
@@ -171,7 +177,9 @@ fun App() {
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
             LocalFavorites provides connection.favorites,
+            LocalSongDragAndDrop provides songDragAndDrop,
         ) {
+        Box(Modifier.fillMaxSize()) {
         val currentScreen by navigator.currentScreen.collectAsState()
         val playerState by playerViewModel.state.collectAsState()
         val hasSong = playerState.playback.currentSong != null
@@ -432,6 +440,9 @@ fun App() {
             }
             }
             }
+        }
+        songDragAndDrop?.let { SongDragOverlay(it) }
+        DuplicateSongsDialog(playlistEditor)
         }
         }
     }

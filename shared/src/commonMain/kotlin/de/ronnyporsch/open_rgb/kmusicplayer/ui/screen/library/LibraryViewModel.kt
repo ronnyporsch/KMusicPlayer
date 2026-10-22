@@ -235,8 +235,6 @@ class LibraryViewModel(
             }
             // The playlists get reloaded through playlistChanges
             is LibraryEvent.CreatePlaylist -> launch { repository.createPlaylist(event.name) }
-            is LibraryEvent.AddSongToPlaylist ->
-                launch { repository.addSongsToPlaylist(event.playlist.id, listOf(event.song.id)) }
             is LibraryEvent.RemoveSongFromPlaylist ->
                 launch { repository.removeSongFromPlaylist(event.playlist.id, event.index) }
             is LibraryEvent.PlayAllPlaylistSongs -> {

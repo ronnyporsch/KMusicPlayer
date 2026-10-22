@@ -94,8 +94,6 @@ fun FavoriteSongsList(
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     modifier: Modifier = Modifier,
-    onDragStart: (Song) -> Unit = {},
-    onDragEnd: () -> Unit = {},
     onSongCtrlClick: (Song) -> Unit = {},
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
 ) {
@@ -187,8 +185,6 @@ fun FavoriteSongsList(
                     index = index,
                     onSongClick = { onSongClick(song, index) },
                     onSongDoubleClick = { onSongDoubleClick(song, index) },
-                    onDragStart = onDragStart,
-                    onDragEnd = onDragEnd,
                     onSongCtrlClick = { onSongCtrlClick(song) },
                     contextMenuSongs = { contextMenuSongs(songs, song) },
                     isSelected = isSelected(song.id),

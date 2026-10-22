@@ -38,12 +38,33 @@ class PlaylistEditor(
         scope.launch { repository.getPlaylists().onSuccess { _playlists.value = it } }
     }
 
+    private val _duplicateConfirmation = MutableStateFlow<DuplicateConfirmation?>(null)
+    /** Songs that are already in the playlist they're being added to, waiting for the user to decide. */
+    val duplicateConfirmation: StateFlow<DuplicateConfirmation?> = _duplicateConfirmation.asStateFlow()
+
+    /** Adds [songs], but asks first if some of them are in the playlist already. */
     fun addToPlaylist(playlist: Playlist, songs: List<Song>) {
         scope.launch {
-            repository.addSongsToPlaylist(playlist.id, songs.map { it.id })
-                .onSuccess { onMessage("Added ${songs.describe()} to \"${playlist.name}\"") }
-                .onFailure { onMessage("Couldn't add to \"${playlist.name}\": ${it.message}") }
+            // If the playlist can't be loaded, add anyway rather than not at all
+            val existingIds = repository.getPlaylist(playlist.id).getOrNull()?.songs.orEmpty().map { it.id }.toSet()
+            val duplicates = songs.filter { it.id in existingIds }
+            if (duplicates.isEmpty()) add(playlist, songs)
+            else _duplicateConfirmation.value = DuplicateConfirmation(playlist, songs, duplicates)
         }
+    }
+
+    /** Answers [duplicateConfirmation]: without [addDuplicates] only the songs not in the playlist yet get added. */
+    fun confirmDuplicates(addDuplicates: Boolean) {
+        val confirmation = _duplicateConfirmation.value ?: return
+        _duplicateConfirmation.value = null
+        val songs = if (addDuplicates) confirmation.songs else confirmation.songs - confirmation.duplicates.toSet()
+        if (songs.isNotEmpty()) scope.launch { add(confirmation.playlist, songs) }
+    }
+
+    private suspend fun add(playlist: Playlist, songs: List<Song>) {
+        repository.addSongsToPlaylist(playlist.id, songs.map { it.id })
+            .onSuccess { onMessage("Added ${songs.describe()} to \"${playlist.name}\"") }
+            .onFailure { onMessage("Couldn't add to \"${playlist.name}\": ${it.message}") }
     }
 
     fun createPlaylist(name: String, songs: List<Song>) {
@@ -55,6 +76,38 @@ class PlaylistEditor(
     }
 
     private fun List<Song>.describe() = singleOrNull()?.let { "\"${it.title}\"" } ?: "$size songs"
+}
+
+data class DuplicateConfirmation(val playlist: Playlist, val songs: List<Song>, val duplicates: List<Song>)
+
+/** Asks whether songs already in a playlist should be added again. "Don't add" is the highlighted default. */
+@Composable
+fun DuplicateSongsDialog(editor: PlaylistEditor) {
+    val confirmation = editor.duplicateConfirmation.collectAsState().value ?: return
+    val allDuplicates = confirmation.duplicates.size == confirmation.songs.size
+    val what = confirmation.duplicates.singleOrNull()?.let { "\"${it.title}\" is" }
+        ?: "${confirmation.duplicates.size} of these songs are"
+    AlertDialog(
+        onDismissRequest = { editor.confirmDuplicates(addDuplicates = false) },
+        title = { Text("Already in playlist") },
+        text = {
+            Text(
+                "$what already in \"${confirmation.playlist.name}\". Add ${if (confirmation.duplicates.size == 1) "it" else "them"} again?" +
+                    if (allDuplicates) "" else "\n\nWith \"Don't add\", only the other songs get added."
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { editor.confirmDuplicates(addDuplicates = false) },
+                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+            ) {
+                Text("Don't add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { editor.confirmDuplicates(addDuplicates = true) }) { Text("Add anyway") }
+        },
+    )
 }
 
 val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }

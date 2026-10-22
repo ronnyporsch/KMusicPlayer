@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -63,8 +62,6 @@ fun SongRow(
     audioFormat: AudioStreamInfo? = null,
     /** Shows a heart to mark the song as favorite (library songs only). */
     showFavorite: Boolean = false,
-    onDragStart: (Song) -> Unit = {},
-    onDragEnd: () -> Unit = {},
     /** Click while Ctrl (Cmd on macOS) is held, to add the song to or remove it from the selection. Desktop and web only. */
     onSongCtrlClick: (() -> Unit)? = null,
     /** The songs the context menu acts on, see [contextMenuSongs]. */
@@ -102,6 +99,8 @@ fun SongRow(
         modifier
             .fillMaxWidth()
             .background(background)
+            // Library songs can be dragged onto playlists; with a selection the drag takes all selected songs
+            .songDragSource(enabled = hasContextMenu) { currentContextMenuSongs() }
             .pointerInput(hasContextMenu) {
                 awaitPointerEventScope {
                     while (true) {
@@ -122,7 +121,6 @@ fun SongRow(
                     if (ctrlPressed && ctrlClick != null) ctrlClick() else onSongClick()
                 },
                 onDoubleClick = onSongDoubleClick,
-                onLongClick = { onDragStart(song) }
             )
     }
 

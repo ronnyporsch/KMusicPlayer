@@ -67,7 +67,6 @@ sealed class LibraryEvent {
     data class PlaylistClicked(val playlist: Playlist) : LibraryEvent()
     data class PlaylistDoubleClicked(val playlist: Playlist) : LibraryEvent()
     data class CreatePlaylist(val name: String) : LibraryEvent()
-    data class AddSongToPlaylist(val playlist: Playlist, val song: Song) : LibraryEvent()
     data class RemoveSongFromPlaylist(val playlist: Playlist, val index: Int) : LibraryEvent()
     data object PlayAllPlaylistSongs : LibraryEvent()
     data object ShuffleAllPlaylistSongs : LibraryEvent()
