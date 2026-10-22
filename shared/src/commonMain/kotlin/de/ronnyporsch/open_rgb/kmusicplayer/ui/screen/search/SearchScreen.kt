@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
@@ -92,6 +93,17 @@ fun SearchScreen(
                     items(state.artists, key = { "artist-${it.id}" }) { artist ->
                         SearchArtistRow(artist) {
                             viewModel.onEvent(SearchEvent.ArtistClicked(artist))
+                        }
+                    }
+                }
+
+                if (state.playlists.isNotEmpty()) {
+                    item {
+                        Text("Playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    }
+                    items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
+                        SearchPlaylistRow(playlist) {
+                            viewModel.onEvent(SearchEvent.PlaylistClicked(playlist))
                         }
                     }
                 }
@@ -207,7 +219,7 @@ fun SearchScreen(
                     }
                 }
 
-                if (state.artists.isEmpty() && state.albums.isEmpty() && state.songs.isEmpty() && !state.youTubeAvailable) {
+                if (state.artists.isEmpty() && state.playlists.isEmpty() && state.albums.isEmpty() && state.songs.isEmpty() && !state.youTubeAvailable) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                             Text("No results found", style = MaterialTheme.typography.bodyMedium)
@@ -265,6 +277,30 @@ private fun SearchArtistRow(artist: Artist, onClick: () -> Unit) {
         Column {
             Text(artist.name, style = MaterialTheme.typography.bodyLarge)
             Text("Artist", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun SearchPlaylistRow(playlist: Playlist, onClick: () -> Unit) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CoverArtImage(
+            url = coverArt.getUrl(playlist.coverArtId),
+            modifier = Modifier.size(48.dp),
+            cornerRadius = 0.dp,
+            placeholderFontSize = 18.sp,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(playlist.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Playlist \u2022 ${playlist.songCount} songs", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

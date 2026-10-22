@@ -12,6 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.ArrowBack
@@ -24,7 +27,9 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeService
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.platform.GlobalShortcuts
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.createHttpClient
+import de.ronnyporsch.open_rgb.kmusicplayer.platform.installGlobalShortcutListener
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalMusicRepository
@@ -140,6 +145,8 @@ fun App() {
                     navigator.push(Screen.ArtistAlbums(effect.artistId, effect.artistName))
                 is SearchEffect.NavigateToAlbum ->
                     navigator.push(Screen.AlbumSongs(effect.albumId))
+                is SearchEffect.NavigateToPlaylist ->
+                    navigator.push(Screen.PlaylistSongs(effect.playlistId))
                 is SearchEffect.PlaySongs ->
                     playSongs(playerViewModel, effect.songs, effect.startIndex, null)
             }
@@ -176,6 +183,11 @@ fun App() {
             topBar = {
                 if (currentScreen !is Screen.Login && currentScreen !is Screen.Player) {
                     val searchState by searchViewModel.state.collectAsState()
+                    val searchFocusRequester = remember { FocusRequester() }
+                    LaunchedEffect(Unit) {
+                        installGlobalShortcutListener()
+                        GlobalShortcuts.focusSearch.collect { searchFocusRequester.requestFocus() }
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -207,15 +219,14 @@ fun App() {
                                     navigator.push(Screen.Search)
                                 }
                             },
-                            placeholder = { Text("Search artists, albums, songs...") },
-                            modifier = Modifier.weight(1f),
+                            // Explicit color: the theme's text styles hardcode white, which overrides the placeholder color
+                            placeholder = { Text("Search artists, albums, songs...", color = SearchPlaceholderGray) },
+                            modifier = Modifier.weight(1f).focusRequester(searchFocusRequester),
                             singleLine = true,
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = SpotifyGreen,
                                 cursorColor = SpotifyGreen,
-                                focusedPlaceholderColor = SpotifyLightGray,
-                                unfocusedPlaceholderColor = SpotifyLightGray,
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
@@ -437,3 +448,5 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
         )
     }
 }
+
+private val SearchPlaceholderGray = Color(0xFF757575)

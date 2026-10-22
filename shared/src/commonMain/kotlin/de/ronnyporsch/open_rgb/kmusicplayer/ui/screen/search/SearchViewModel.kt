@@ -9,6 +9,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -53,6 +54,8 @@ class SearchViewModel(
                 emitEffect(SearchEffect.NavigateToArtist(null, event.artistName))
             is SearchEvent.AlbumClicked ->
                 emitEffect(SearchEffect.NavigateToAlbum(event.album.id))
+            is SearchEvent.PlaylistClicked ->
+                emitEffect(SearchEffect.NavigateToPlaylist(event.playlist.id))
             is SearchEvent.SongClicked -> selectOrPlay(currentState.songs, event.song, event.index)
             is SearchEvent.SongDoubleClicked -> play(currentState.songs, event.song, event.index)
             is SearchEvent.YouTubeSongClicked -> selectOrPlay(currentState.youTubeSongs, event.song, event.index)
@@ -78,11 +81,18 @@ class SearchViewModel(
         if (query.isBlank()) return
         setState { copy(isLoading = true) }
         launch {
-            repository.search(query)
+            // The search APIs don't cover playlists, so match them by name
+            val matchingPlaylists = viewModelScope.async {
+                repository.getPlaylists().getOrDefault(emptyList()).filter { it.name.contains(query.trim(), ignoreCase = true) }
+            }
+            val results = repository.search(query)
+            val playlists = matchingPlaylists.await()
+            results
                 .onSuccess {
                     setState {
                         copy(
                             artists = it.artists,
+                            playlists = playlists,
                             albums = it.albums,
                             songs = it.songs,
                             isLoading = false,
@@ -91,7 +101,7 @@ class SearchViewModel(
                     }
                 }
                 .onFailure {
-                    setState { copy(isLoading = false, hasSearched = true) }
+                    setState { copy(playlists = playlists, isLoading = false, hasSearched = true) }
                 }
         }
         if (currentState.youTubeAvailable) searchYouTube(query)

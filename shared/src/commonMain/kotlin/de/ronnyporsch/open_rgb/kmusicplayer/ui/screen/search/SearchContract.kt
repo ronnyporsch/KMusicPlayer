@@ -2,6 +2,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.search
 
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.AudioStreamInfo
 
@@ -14,6 +15,7 @@ sealed class DownloadStatus {
 data class SearchState(
     val query: String = "",
     val artists: List<Artist> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
     val albums: List<Album> = emptyList(),
     val songs: List<Song> = emptyList(),
     val isLoading: Boolean = false,
@@ -35,6 +37,7 @@ sealed class SearchEvent {
     data class ArtistClicked(val artist: Artist) : SearchEvent()
     data class ArtistNameClicked(val artistName: String) : SearchEvent()
     data class AlbumClicked(val album: Album) : SearchEvent()
+    data class PlaylistClicked(val playlist: Playlist) : SearchEvent()
     data class SongClicked(val song: Song, val index: Int) : SearchEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
@@ -47,5 +50,6 @@ sealed class SearchEvent {
 sealed class SearchEffect {
     data class NavigateToArtist(val artistId: String?, val artistName: String) : SearchEffect()
     data class NavigateToAlbum(val albumId: String) : SearchEffect()
+    data class NavigateToPlaylist(val playlistId: String) : SearchEffect()
     data class PlaySongs(val songs: List<Song>, val startIndex: Int) : SearchEffect()
 }
