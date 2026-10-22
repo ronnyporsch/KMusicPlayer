@@ -46,6 +46,9 @@ interface MusicRepository {
 
     /** Synced lyrics if the server has them, plain ones otherwise; null if there are none. */
     suspend fun getLyrics(song: Song): Result<Lyrics?>
+
+    /** Codec and bitrate of the song's file (for YouTube Music songs: of the stream); null if unknown. */
+    suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?>
     fun getStreamUrl(songId: String): String
 
     /** URL of the song's original file, e.g. for downloading it. */
@@ -211,6 +214,9 @@ class MusicRepositoryImpl(
             ?.takeIf { it.isNotBlank() }
             ?.let { text -> Lyrics(text.lines().map { LyricLine(it.trim()) }) }
     }
+
+    // Subsonic song lists always carry suffix and bitrate
+    override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> = Result.success(song.audioFormat)
 
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId)
 

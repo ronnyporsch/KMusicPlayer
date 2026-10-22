@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.data.youtube
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.DownloadedTrackDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.YouTubeAlbumDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.YouTubeAlbumSummaryDto
@@ -8,6 +9,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.YouTubeSongDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicServerConnection
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ArtistInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.YOUTUBE_SONG_ID_PREFIX
@@ -32,9 +34,6 @@ data class YouTubeCapabilities(
     /** Whether tracks can be downloaded into the server's library. */
     val canDownload: Boolean = false,
 )
-
-/** [codec] is a display name such as "Opus" or "AAC"; [bitRate] is in kbps. */
-data class AudioStreamInfo(val codec: String?, val bitRate: Int?)
 
 sealed class DownloadStatus {
     data object InProgress : DownloadStatus()
@@ -74,6 +73,10 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** Downloads requested in this session, by song id; they keep running when the requesting screen is left. */
     val downloads: StateFlow<Map<String, DownloadStatus>> = _downloads.asStateFlow()
 
+    private val _libraryFormats = MutableStateFlow<Map<String, AudioStreamInfo>>(emptyMap())
+    /** Codec and bitrate of the downloaded files of songs in the library ([downloads] says which), by song id. */
+    val libraryFormats: StateFlow<Map<String, AudioStreamInfo>> = _libraryFormats.asStateFlow()
+
     private fun capabilitiesFor(plugin: PluginInfoDto?): YouTubeCapabilities {
         val server = plugin?.takeIf { it.ytDlpAvailable }
         return YouTubeCapabilities(available = server != null, canDownload = server?.canDownload == true)
@@ -112,17 +115,25 @@ class YouTubeService(private val connection: MusicServerConnection) {
         val videoIds = songs.mapNotNull { song -> song.youTubeVideoId?.takeIf { _downloads.value[song.id] == null } }
         if (videoIds.isEmpty()) return
         scope.launch {
-            try {
-                for (videoId in connection.jellyfinApi.getDownloadedYouTube(videoIds)) {
-                    val songId = YOUTUBE_SONG_ID_PREFIX + videoId
-                    if (_downloads.value[songId] == null) setStatus(songId, DownloadStatus.InLibrary)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Only informational
+            for (track in downloadedTracks(videoIds)) {
+                val songId = YOUTUBE_SONG_ID_PREFIX + track.videoId
+                if (_downloads.value[songId] == null) setStatus(songId, DownloadStatus.InLibrary)
             }
         }
+    }
+
+    /** Looks up those of [videoIds] that are in the library and records their [libraryFormats]. */
+    private suspend fun downloadedTracks(videoIds: List<String>): List<DownloadedTrackDto> = try {
+        connection.jellyfinApi.getDownloadedYouTube(videoIds).also { tracks ->
+            val formats = tracks.filter { it.codec != null || it.bitRate != null }
+                .associate { YOUTUBE_SONG_ID_PREFIX + it.videoId to AudioStreamInfo(it.codec, it.bitRate) }
+            if (formats.isNotEmpty()) _libraryFormats.value += formats
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // Only informational
+        emptyList()
     }
 
     /** Ids of those of [albums] (YouTube Music ones) whose songs are all in the server's library. */
@@ -195,6 +206,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             else -> {
                 runningJobs.remove(jobId)
                 setStatus(songId, DownloadStatus.Done(message ?: "Saved to $path on the server"))
+                songId.youTubeId?.let { videoId -> scope.launch { downloadedTracks(listOf(videoId)) } }
             }
         }
     }

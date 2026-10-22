@@ -104,6 +104,8 @@ data class SongDto(
     val year: Int? = null,
     val genre: String? = null,
     val bitRate: Int? = null,
+    /** File extension, e.g. "flac". */
+    val suffix: String? = null,
 )
 
 @Serializable

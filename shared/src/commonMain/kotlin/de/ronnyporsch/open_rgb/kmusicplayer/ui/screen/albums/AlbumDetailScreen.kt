@@ -21,6 +21,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.libraryFormat
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CollapsingTopBar
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeader
@@ -187,6 +188,7 @@ fun AlbumDetailScreen(
                             contextMenuSongs = { album.songs.contextMenuSongs(song, state.selectedSongIds) },
                             isSelected = song.id in state.selectedSongIds,
                             isPlaying = currentSongId == song.id,
+                            audioFormat = song.libraryFormat(state.libraryFormats),
                             trailingContent = if (state.isYouTube && state.canDownload) {
                                 {
                                     YouTubeDownloadButton(state.downloads[song.id]) {

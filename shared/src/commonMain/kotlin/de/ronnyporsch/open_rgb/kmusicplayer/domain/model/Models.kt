@@ -52,8 +52,26 @@ data class Song(
     val discNumber: Int? = null,
     val year: Int? = null,
     val genre: String? = null,
+    /** In kbps. */
     val bitRate: Int? = null,
+    /** Display name such as "FLAC" or "Opus", see [codecDisplayName]. */
+    val codec: String? = null,
 )
+
+/** [codec] is a display name such as "Opus" or "AAC", see [codecDisplayName]; [bitRate] is in kbps. */
+data class AudioStreamInfo(val codec: String?, val bitRate: Int?)
+
+/** Codec and bitrate the song carries itself (library songs, from some song lists), or null. */
+val Song.audioFormat: AudioStreamInfo?
+    get() = AudioStreamInfo(codec, bitRate).takeIf { codec != null || bitRate != null }
+
+/** Display name of a codec or file type as servers report it, e.g. "flac" -> "FLAC", "m4a" -> "AAC". */
+fun codecDisplayName(codec: String): String = when (val lower = codec.lowercase()) {
+    "opus" -> "Opus"
+    "vorbis", "ogg", "oga" -> "Vorbis"
+    "aac", "m4a", "mp4a" -> "AAC"
+    else -> if (lower.startsWith("mp4a")) "AAC" else lower.uppercase()
+}
 
 @Serializable
 data class Playlist(

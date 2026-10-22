@@ -14,11 +14,13 @@ namespace Jellyfin.Plugin.KMusicPlayer.Services;
 /// <summary>
 /// Knows which YouTube Music tracks are in the download folder. Downloads carry their watch URL in the comment tag,
 /// which Jellyfin doesn't store, so the index reads the tags itself: once for all files, then only for new or changed
-/// ones. It is saved, so restarts don't read every file again.
+/// ones. It is saved, so restarts don't read every file again. It also keeps the files' codec and bitrate.
 /// </summary>
 public partial class DownloadIndex
 {
     private static readonly TimeSpan RescanInterval = TimeSpan.FromMinutes(10);
+    /// <summary>Raise when the format is read differently, so existing entries get read again.</summary>
+    private const int FormatVersion = 1;
     private static readonly HashSet<string> AudioExtensions =
         [".opus", ".ogg", ".oga", ".m4a", ".mp4", ".webm", ".mp3", ".flac"];
 
@@ -40,7 +42,7 @@ public partial class DownloadIndex
     /// Returns those of <paramref name="videoIds"/> whose tracks are in <paramref name="directory"/>. Rescans it in
     /// the background if the last scan is a while ago, so the very first lookups may miss earlier downloads.
     /// </summary>
-    public IReadOnlyList<string> FindDownloaded(IEnumerable<string> videoIds, string? directory)
+    public IReadOnlyList<DownloadedTrack> FindDownloaded(IEnumerable<string> videoIds, string? directory)
     {
         if (directory != null)
         {
@@ -52,6 +54,11 @@ public partial class DownloadIndex
             Load();
             return videoIds.Distinct()
                 .Where(id => _pathsByVideoId.TryGetValue(id, out var path) && File.Exists(path))
+                .Select(id =>
+                {
+                    var entry = _entries![_pathsByVideoId[id]];
+                    return new DownloadedTrack(id, entry.Codec, entry.BitRate);
+                })
                 .ToList();
         }
     }
@@ -62,7 +69,7 @@ public partial class DownloadIndex
         lock (_lock)
         {
             Load();
-            _entries![path] = new Entry(videoId, File.GetLastWriteTimeUtc(path).Ticks);
+            _entries![path] = ReadFormat(path, new Entry(videoId, File.GetLastWriteTimeUtc(path).Ticks));
             _pathsByVideoId[videoId] = path;
             Save();
         }
@@ -105,13 +112,14 @@ public partial class DownloadIndex
             foreach (var path in files)
             {
                 var modified = File.GetLastWriteTimeUtc(path).Ticks;
-                if (known.TryGetValue(path, out var entry) && entry.Modified == modified)
+                // Entries of older plugin versions lack the format or have it read differently
+                if (known.TryGetValue(path, out var entry) && entry.Modified == modified && (entry.VideoId == null || entry.Format == FormatVersion))
                 {
                     found[path] = entry;
                     continue;
                 }
 
-                found[path] = new Entry(ReadVideoId(path), modified);
+                found[path] = ReadEntry(path, modified);
                 read++;
             }
 
@@ -139,19 +147,66 @@ public partial class DownloadIndex
         }
     }
 
-    private string? ReadVideoId(string path)
+    private Entry ReadEntry(string path, long modified)
     {
         try
         {
-            using var file = TagLib.File.Create(path, TagLib.ReadStyle.None);
+            using var file = TagLib.File.Create(path, TagLib.ReadStyle.Average);
             var comment = file.Tag.Comment;
-            return comment != null && WatchUrlRegex().Match(comment) is { Success: true } match ? match.Groups[1].Value : null;
+            var videoId = comment != null && WatchUrlRegex().Match(comment) is { Success: true } match ? match.Groups[1].Value : null;
+            return videoId == null ? new Entry(null, modified) : Format(file, path, new Entry(videoId, modified));
         }
         catch (Exception e)
         {
             _logger.LogDebug(e, "Could not read the tags of {Path}", path);
-            return null;
+            return new Entry(null, modified);
         }
+    }
+
+    private Entry ReadFormat(string path, Entry entry)
+    {
+        try
+        {
+            using var file = TagLib.File.Create(path, TagLib.ReadStyle.Average);
+            return Format(file, path, entry);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Could not read the audio properties of {Path}", path);
+            return entry;
+        }
+    }
+
+    /// <summary>Adds codec display name (as in <see cref="AudioStreamInfo"/>) and bitrate in kbps.</summary>
+    private static Entry Format(TagLib.File file, string path, Entry entry)
+    {
+        var properties = file.Properties;
+        var description = properties?.Codecs.FirstOrDefault(codec => codec != null)?.Description ?? string.Empty;
+        var codec = description switch
+        {
+            _ when description.Contains("Opus", StringComparison.OrdinalIgnoreCase) => "Opus",
+            _ when description.Contains("Vorbis", StringComparison.OrdinalIgnoreCase) => "Vorbis",
+            _ when description.Contains("Flac", StringComparison.OrdinalIgnoreCase) => "FLAC",
+            _ when description.Contains("Layer 3", StringComparison.OrdinalIgnoreCase) => "MP3",
+            _ when description.Contains("ALAC", StringComparison.OrdinalIgnoreCase) => "ALAC",
+            _ when description.Contains("MPEG-4", StringComparison.OrdinalIgnoreCase) || description.Contains("AAC", StringComparison.OrdinalIgnoreCase) => "AAC",
+            _ => Path.GetExtension(path).TrimStart('.').ToUpperInvariant() switch
+            {
+                "OPUS" or "WEBM" => "Opus",
+                "M4A" or "MP4" => "AAC",
+                var extension => extension,
+            },
+        };
+
+        // Not every format reports it (e.g. Opus); the average without the embedded cover is close enough
+        int? bitRate = properties?.AudioBitrate > 0 ? properties.AudioBitrate : null;
+        if (bitRate == null && properties?.Duration.TotalSeconds > 1)
+        {
+            var audioBytes = new FileInfo(path).Length - file.Tag.Pictures.Sum(picture => (long)(picture.Data?.Count ?? 0));
+            bitRate = (int)Math.Round(audioBytes * 8 / properties.Duration.TotalSeconds / 1000);
+        }
+
+        return entry with { Codec = codec, BitRate = bitRate, Format = FormatVersion };
     }
 
     // Callers hold _lock
@@ -203,6 +258,12 @@ public partial class DownloadIndex
     [GeneratedRegex(@"youtube\.com/watch\?(?:.*&)?v=([\w-]{11})")]
     private static partial Regex WatchUrlRegex();
 
-    /// <summary>A file of the download folder; <see cref="VideoId"/> is null for files that aren't YouTube Music downloads.</summary>
-    private sealed record Entry(string? VideoId, long Modified);
+    /// <summary>
+    /// A file of the download folder; <see cref="VideoId"/> is null for files that aren't YouTube Music downloads,
+    /// whose format isn't read.
+    /// </summary>
+    private sealed record Entry(string? VideoId, long Modified, string? Codec = null, int? BitRate = null, int Format = 0);
 }
+
+/// <summary>A downloaded YouTube Music track; codec display name and bitrate in kbps as in <see cref="AudioStreamInfo"/>.</summary>
+public record DownloadedTrack(string VideoId, string? Codec, int? BitRate);

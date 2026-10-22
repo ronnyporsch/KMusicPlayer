@@ -47,7 +47,7 @@ class JellyfinMusicRepository(
 
     override suspend fun getAlbum(albumId: String): Result<Album> = runCatching {
         coroutineScope {
-            val songs = async { songs("parentId" to albumId, "sortBy" to "ParentIndexNumber,IndexNumber,SortName") }
+            val songs = async { songs("parentId" to albumId, "sortBy" to "ParentIndexNumber,IndexNumber,SortName", WITH_FORMAT) }
             api.getItem(albumId).toAlbum().copy(songs = songs.await())
         }
     }
@@ -99,14 +99,14 @@ class JellyfinMusicRepository(
 
     override suspend fun findSongsByArtistName(name: String): Result<List<Song>> = runCatching {
         val artist = findArtistByName(name).getOrNull() ?: return@runCatching emptyList()
-        songs("artistIds" to artist.id, "sortBy" to "Album,ParentIndexNumber,IndexNumber")
+        songs("artistIds" to artist.id, "sortBy" to "Album,ParentIndexNumber,IndexNumber", WITH_FORMAT)
     }
 
     override suspend fun getSongsForArtist(artistName: String, albumIds: List<String>): Result<List<Song>> = runCatching {
         coroutineScope {
             val albumSongs = async {
                 if (albumIds.isEmpty()) emptyList()
-                else songs("albumIds" to albumIds.joinToString(","), "sortBy" to "ProductionYear,Album,ParentIndexNumber,IndexNumber")
+                else songs("albumIds" to albumIds.joinToString(","), "sortBy" to "ProductionYear,Album,ParentIndexNumber,IndexNumber", WITH_FORMAT)
             }
             val creditedSongs = async { findSongsByArtistName(artistName).getOrDefault(emptyList()) }
             val fromAlbums = albumSongs.await()
@@ -145,6 +145,11 @@ class JellyfinMusicRepository(
         saved?.toLyrics() ?: best.lyrics.toLyrics()
     }
 
+    // Single items come with their media streams
+    override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> = runCatching {
+        song.audioFormat ?: api.getItem(song.id).toSong().audioFormat
+    }
+
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId, getPlatform().audioContainers)
 
     override fun getDownloadUrl(songId: String): String = api.getOriginalAudioUrl(songId)
@@ -172,6 +177,9 @@ class JellyfinMusicRepository(
             ) + params
         ).items.map { it.toSong() }
 }
+
+/** Song query parameter for codec and bitrate; only where shown, the media streams make responses a lot bigger. */
+private val WITH_FORMAT = "fields" to "Genres,MediaStreams"
 
 private fun LyricDto.toLyrics(): Lyrics? =
     lyrics.takeIf { it.isNotEmpty() }?.let { lines ->
@@ -220,6 +228,8 @@ private fun BaseItemDto.toSong() = Song(
     discNumber = parentIndexNumber,
     year = productionYear,
     genre = genres.firstOrNull(),
+    bitRate = mediaStreams.firstOrNull { it.type == "Audio" }?.bitRate?.let { (it + 500) / 1000 },
+    codec = mediaStreams.firstOrNull { it.type == "Audio" }?.codec?.let(::codecDisplayName),
 )
 
 private fun BaseItemDto.toPlaylist() = Playlist(

@@ -166,6 +166,11 @@ public class KMusicPlayerController : ControllerBase
     /// </summary>
     [HttpPost("YouTube/Downloaded")]
     public ActionResult<IReadOnlyList<string>> GetDownloaded([FromBody] List<string> videoIds) =>
+        Ok(_downloads.FindDownloaded(videoIds.Where(YtDlpService.IsValidVideoId).Take(500)).Select(track => track.VideoId).ToList());
+
+    /// <summary>Like <see cref="GetDownloaded"/>, with codec and bitrate of the downloaded files.</summary>
+    [HttpPost("YouTube/Downloaded/Details")]
+    public ActionResult<IReadOnlyList<DownloadedTrack>> GetDownloadedDetails([FromBody] List<string> videoIds) =>
         Ok(_downloads.FindDownloaded(videoIds.Where(YtDlpService.IsValidVideoId).Take(500)));
 
     /// <summary>Returns those of the given album ids whose tracks are all in the library's download folder.</summary>

@@ -57,8 +57,18 @@ data class BaseItemDto(
     @SerialName("ChildCount") val childCount: Int? = null,
     @SerialName("AlbumCount") val albumCount: Int? = null,
     @SerialName("Genres") val genres: List<String> = emptyList(),
+    /** Only with the MediaStreams field. */
+    @SerialName("MediaStreams") val mediaStreams: List<MediaStreamDto> = emptyList(),
     /** Identifies the entry within a playlist (the same song can be in it more than once). */
     @SerialName("PlaylistItemId") val playlistItemId: String? = null,
+)
+
+@Serializable
+data class MediaStreamDto(
+    @SerialName("Type") val type: String = "",
+    @SerialName("Codec") val codec: String? = null,
+    /** In bit/s. */
+    @SerialName("BitRate") val bitRate: Int? = null,
 )
 
 @Serializable
@@ -181,6 +191,14 @@ data class DownloadJobDto(
 ) {
     val isFinished: Boolean get() = state == "Completed" || state == "Failed"
 }
+
+/** A downloaded YouTube Music track; [codec] is a display name, [bitRate] in kbps. */
+@Serializable
+data class DownloadedTrackDto(
+    @SerialName("VideoId") val videoId: String,
+    @SerialName("Codec") val codec: String? = null,
+    @SerialName("BitRate") val bitRate: Int? = null,
+)
 
 @Serializable
 data class AudioStreamInfoDto(

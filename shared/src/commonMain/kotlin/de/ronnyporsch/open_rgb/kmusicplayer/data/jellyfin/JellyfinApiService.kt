@@ -214,16 +214,28 @@ class JellyfinApiService {
 
     suspend fun getDownload(jobId: String): DownloadJobDto = get("KMusicPlayer/Downloads/$jobId", emptyMap())
 
-    /** Those of [videoIds] whose tracks are already in the library. Empty with plugins that can't tell. */
-    suspend fun getDownloadedYouTube(videoIds: List<String>): List<String> {
-        val response = client.post("${baseUrl()}/KMusicPlayer/YouTube/Downloaded") {
+    /**
+     * Those of [videoIds] whose tracks are already in the library. Empty with plugins that can't tell; without
+     * codec and bitrate with plugins before 1.7.3.1.
+     */
+    suspend fun getDownloadedYouTube(videoIds: List<String>): List<DownloadedTrackDto> {
+        val response = client.post("${baseUrl()}/KMusicPlayer/YouTube/Downloaded/Details") {
             authorize()
             contentType(ContentType.Application.Json)
             setBody(videoIds)
         }
-        if (response.status == HttpStatusCode.NotFound) return emptyList()
-        response.ensureSuccess()
-        return response.body()
+        if (response.status != HttpStatusCode.NotFound) {
+            response.ensureSuccess()
+            return response.body()
+        }
+        val legacy = client.post("${baseUrl()}/KMusicPlayer/YouTube/Downloaded") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(videoIds)
+        }
+        if (legacy.status == HttpStatusCode.NotFound) return emptyList()
+        legacy.ensureSuccess()
+        return legacy.body<List<String>>().map { DownloadedTrackDto(it) }
     }
 
     /** Those of [albumIds] whose tracks are all in the library. Empty with plugins that can't tell. */

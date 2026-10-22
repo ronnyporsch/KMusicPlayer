@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTube
@@ -57,6 +58,8 @@ fun SongRow(
     onSongDoubleClick: (() -> Unit)? = null,
     onRemoveClick: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    /** Codec and bitrate, shown left of the duration. */
+    audioFormat: AudioStreamInfo? = null,
     onDragStart: (Song) -> Unit = {},
     onDragEnd: () -> Unit = {},
     /** Click while Ctrl (Cmd on macOS) is held, to add the song to or remove it from the selection. Desktop and web only. */
@@ -187,6 +190,8 @@ fun SongRow(
             }
 
             Spacer(Modifier.width(12.dp))
+
+            AudioFormatText(audioFormat, Modifier.padding(end = 12.dp))
 
             Text(
                 text = song.duration.formatDuration(),

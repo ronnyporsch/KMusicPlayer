@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Lyrics
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackState
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
@@ -9,6 +10,8 @@ data class PlayerState(
     val showLyrics: Boolean = false,
     /** Lyrics of the current song. */
     val lyrics: LyricsState = LyricsState.Loading,
+    /** Codec and bitrate of the current song, once known. */
+    val audioFormat: AudioStreamInfo? = null,
 )
 
 sealed interface LyricsState {

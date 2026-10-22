@@ -33,6 +33,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDurationMs
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.AudioFormatText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -177,6 +178,7 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(playback.positionMs.formatDurationMs(), style = MaterialTheme.typography.bodySmall)
+                AudioFormatText(state.audioFormat)
                 Text(playback.durationMs.formatDurationMs(), style = MaterialTheme.typography.bodySmall)
             }
         }

@@ -193,19 +193,10 @@ fun SearchScreen(
                                 isSelected = song.id in state.selectedSongIds,
                                 isPlaying = currentSongId == song.id,
                                 showAlbum = true,
-                                trailingContent = {
-                                    state.youTubeStreamInfo[song.id]?.let { info ->
-                                        Text(
-                                            listOfNotNull(info.codec, info.bitRate?.let { "$it kbps" }).joinToString(" \u2022 "),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(end = 4.dp),
-                                        )
-                                    }
-                                    if (state.youTubeDownloadAvailable) {
-                                        YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) }
-                                    }
-                                },
+                                audioFormat = state.youTubeStreamInfo[song.id],
+                                trailingContent = if (state.youTubeDownloadAvailable) {
+                                    { YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) } }
+                                } else null,
                             )
                             YouTubeDownloadMessage(download)
                         }

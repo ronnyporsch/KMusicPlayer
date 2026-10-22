@@ -4,7 +4,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.AudioStreamInfo
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
 
 data class SearchState(

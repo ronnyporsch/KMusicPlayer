@@ -112,7 +112,7 @@ public partial class DownloadManager
     }
 
     /// <summary>Returns those of <paramref name="videoIds"/> that are already in the download folder.</summary>
-    public IReadOnlyList<string> FindDownloaded(IEnumerable<string> videoIds) =>
+    public IReadOnlyList<DownloadedTrack> FindDownloaded(IEnumerable<string> videoIds) =>
         _index.FindDownloaded(videoIds, GetDownloadDirectory());
 
     /// <summary>Returns those of <paramref name="albumIds"/> whose tracks are all in the download folder.</summary>
@@ -120,7 +120,7 @@ public partial class DownloadManager
     {
         var albums = await Task.WhenAll(albumIds.Distinct().Select(async albumId =>
             (Id: albumId, VideoIds: await GetAlbumTracksAsync(albumId, cancellationToken).ConfigureAwait(false)))).ConfigureAwait(false);
-        var downloaded = FindDownloaded(albums.SelectMany(album => album.VideoIds)).ToHashSet();
+        var downloaded = FindDownloaded(albums.SelectMany(album => album.VideoIds)).Select(track => track.VideoId).ToHashSet();
         return albums
             .Where(album => album.VideoIds.Count > 0 && album.VideoIds.All(downloaded.Contains))
             .Select(album => album.Id)

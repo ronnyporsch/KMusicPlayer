@@ -33,6 +33,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeaderTitle
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ExpandableText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.libraryFormat
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
@@ -207,6 +208,7 @@ fun ArtistAlbumsScreen(
                                 isPlaying = currentSongId == song.id,
                                 showAlbum = true,
                                 showArtist = false,
+                                audioFormat = song.libraryFormat(state.libraryFormats),
                                 trailingContent = if (state.isYouTube && state.canDownload) {
                                     {
                                         YouTubeDownloadButton(state.downloads[song.id]) {

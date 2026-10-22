@@ -1,6 +1,7 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.audioFormat
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
@@ -120,6 +121,18 @@ class PlayerViewModel(
                 .map { it.playback.currentSong }
                 .distinctUntilChanged { old, new -> old?.id == new?.id }
                 .collectLatest { song -> if (song != null && song.id != lyricsSongId) loadLyrics(song) }
+        }
+        launch {
+            state
+                .map { it.playback.currentSong }
+                .distinctUntilChanged { old, new -> old?.id == new?.id }
+                .collectLatest { song ->
+                    setState { copy(audioFormat = song?.audioFormat) }
+                    if (song != null && song.audioFormat == null) {
+                        // Only informational, e.g. offline there is none
+                        repository.getAudioFormat(song).getOrNull()?.let { setState { copy(audioFormat = it) } }
+                    }
+                }
         }
         launch {
             settingsHolder.settings.collectLatest { settings ->

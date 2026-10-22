@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.library
 
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.audioFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -725,7 +726,8 @@ private fun ArtistDetailPane(
                                     if (album != null) onAlbumClick(album) else onSongAlbumClick(albumId)
                                 },
                                 showAlbum = true,
-                                showArtist = false
+                                showArtist = false,
+                                audioFormat = song.audioFormat,
                             )
                         }
                     }
@@ -981,6 +983,7 @@ private fun AlbumDetailPane(
                             contextMenuSongs = { contextMenuSongs(album.songs, song) },
                             isSelected = isSelected(song.id),
                             isPlaying = isPlaying(song.id),
+                            audioFormat = song.audioFormat,
                         )
                     }
                 }

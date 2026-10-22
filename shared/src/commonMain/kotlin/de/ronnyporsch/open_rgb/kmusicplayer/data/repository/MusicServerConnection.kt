@@ -158,6 +158,17 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun getLyrics(song: Song) =
             if (song.isYouTube) Result.success(null) else active.getLyrics(song)
 
+        override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> {
+            val videoId = song.youTubeVideoId ?: return active.getAudioFormat(song)
+            // The downloaded file if there is one (cheap), else the stream yt-dlp picks (served the same way)
+            return runCatching {
+                jellyfinApi.getDownloadedYouTube(listOf(videoId)).firstOrNull()
+                    ?.takeIf { it.codec != null || it.bitRate != null }
+                    ?.let { AudioStreamInfo(it.codec, it.bitRate) }
+                    ?: jellyfinApi.getYouTubeStreamInfo(videoId)?.let { AudioStreamInfo(it.codec, it.bitRate) }
+            }
+        }
+
         override fun getStreamUrl(songId: String): String {
             val videoId = songId.takeIf { it.startsWith(YOUTUBE_SONG_ID_PREFIX) }?.removePrefix(YOUTUBE_SONG_ID_PREFIX)
                 ?: return active.getStreamUrl(songId)

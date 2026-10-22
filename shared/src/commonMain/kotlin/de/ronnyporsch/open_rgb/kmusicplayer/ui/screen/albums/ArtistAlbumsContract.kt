@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
@@ -21,6 +22,8 @@ data class ArtistAlbumsState(
     val canDownload: Boolean = false,
     /** YouTube Music downloads by song id. */
     val downloads: Map<String, DownloadStatus> = emptyMap(),
+    /** Codec and bitrate of downloaded YouTube Music songs, by song id. */
+    val libraryFormats: Map<String, AudioStreamInfo> = emptyMap(),
     /** YouTube Music albums whose songs are all in the library. */
     val downloadedAlbumIds: Set<String> = emptySet(),
 )

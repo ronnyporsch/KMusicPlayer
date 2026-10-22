@@ -102,4 +102,5 @@ parameter).
 | `POST /KMusicPlayer/Downloads` | Queue a download; the body is a search result as returned by the search |
 | `GET /KMusicPlayer/Downloads[/{id}]` | Status of the user's downloads (`Queued`, `Downloading`, `Importing`, `Completed`, `Failed`) |
 | `GET /KMusicPlayer/YouTube/{videoId}/StreamInfo` | Codec and bitrate of the stream a download would get |
+| `POST /KMusicPlayer/YouTube/Downloaded[/Details]` | Which of the given video ids (JSON array) are already downloaded; `Details` adds codec and bitrate of the files |
 | `GET /KMusicPlayer/YouTube/{videoId}/Audio[?format=mp3]` | The track's audio, for playback |

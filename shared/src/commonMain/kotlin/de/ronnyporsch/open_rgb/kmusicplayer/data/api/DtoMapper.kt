@@ -5,6 +5,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.codecDisplayName
 
 fun ArtistDto.toDomain() = Artist(
     id = id,
@@ -53,6 +54,7 @@ fun SongDto.toDomain() = Song(
     year = year,
     genre = genre,
     bitRate = bitRate,
+    codec = suffix?.takeIf { it.isNotBlank() }?.let(::codecDisplayName),
 )
 
 fun PlaylistDto.toDomain() = Playlist(
