@@ -1,4 +1,8 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.tasks.AbstractJarsFlattenTask
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.kotlinJvm)
@@ -31,6 +35,33 @@ compose.desktop {
 
             linux { iconFile.set(project.file("icons/icon.png")) }
             windows { iconFile.set(project.file("icons/icon.ico")) }
+        }
+    }
+}
+
+// The uber jar keeps only the first copy of each entry, so of the javax.sound SPI registrations
+// in META-INF/services only mp3spi's survived and FLAC (jflac) wasn't decodable. Merge them.
+tasks.withType<AbstractJarsFlattenTask>().configureEach {
+    doLast {
+        val services = linkedMapOf<String, LinkedHashSet<String>>()
+        fun collect(name: String, text: String) {
+            services.getOrPut(name) { linkedSetOf() } += text.lines().map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }
+        }
+        inputFiles.files.forEach { file ->
+            when {
+                file.isDirectory -> file.resolve("META-INF/services").listFiles()?.filter { it.isFile }
+                    ?.forEach { collect("META-INF/services/${it.name}", it.readText()) }
+                file.name.endsWith(".jar") -> ZipFile(file).use { zip ->
+                    zip.entries().asSequence()
+                        .filter { !it.isDirectory && it.name.startsWith("META-INF/services/") }
+                        .forEach { entry -> collect(entry.name, zip.getInputStream(entry).reader().readText()) }
+                }
+            }
+        }
+        FileSystems.newFileSystem(flattenedJar.get().asFile.toPath()).use { jar ->
+            services.forEach { (name, providers) ->
+                Files.write(jar.getPath(name), providers.joinToString("\n", postfix = "\n").toByteArray())
+            }
         }
     }
 }
