@@ -167,6 +167,34 @@ public class DownloadJobDto
     public DateTime CreatedAt { get; set; }
 }
 
+/// <summary>Adds YouTube Music tracks to a playlist, downloading those that aren't in the library yet.</summary>
+public class PlaylistAdditionDto
+{
+    public Guid Id { get; set; }
+
+    public string PlaylistId { get; set; } = string.Empty;
+
+    public string PlaylistName { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the number of requested tracks.</summary>
+    public int Total { get; set; }
+
+    public int Added { get; set; }
+
+    /// <summary>Gets or sets the number of tracks that were in the playlist already.</summary>
+    public int AlreadyInPlaylist { get; set; }
+
+    /// <summary>Gets or sets why tracks couldn't be added, one entry per track.</summary>
+    public List<string> Failures { get; set; } = [];
+
+    public bool Finished { get; set; }
+
+    /// <summary>Gets or sets the download jobs of the tracks that weren't in the library.</summary>
+    public List<DownloadJobDto> Jobs { get; set; } = [];
+
+    public DateTime CreatedAt { get; set; }
+}
+
 public class PluginInfoDto
 {
     public string Version { get; set; } = string.Empty;
@@ -185,4 +213,7 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether search includes videos and videos can be streamed with picture.</summary>
     public bool VideoAvailable { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether tracks can be added to playlists (downloading them first).</summary>
+    public bool PlaylistAdditionAvailable { get; set; }
 }

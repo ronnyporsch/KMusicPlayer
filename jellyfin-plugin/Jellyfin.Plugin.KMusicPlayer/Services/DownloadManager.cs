@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.KMusicPlayer.Api;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Playlists;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -17,11 +18,15 @@ namespace Jellyfin.Plugin.KMusicPlayer.Services;
 
 /// <summary>
 /// Queues downloads requested by clients, writes tagged files into the music library and triggers a library scan.
+/// Also adds tracks to playlists once they are in the library.
 /// </summary>
 public partial class DownloadManager
 {
     private const int MaxRetainedJobs = 200;
+    private const int MaxRetainedAdditions = 50;
     private static readonly TimeSpan ImportTimeout = TimeSpan.FromMinutes(3);
+    /// <summary>How long a track to add to a playlist may take to show up in the library (large libraries scan slowly).</summary>
+    private static readonly TimeSpan PlaylistImportTimeout = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan AlbumTracksLifetime = TimeSpan.FromDays(1);
     private static readonly string[] CoverHostSuffixes = [".googleusercontent.com", ".ytimg.com", ".ggpht.com"];
 
@@ -30,9 +35,11 @@ public partial class DownloadManager
     private readonly YouTubeMusicClient _youTubeMusic;
     private readonly ILibraryManager _libraryManager;
     private readonly ITaskManager _taskManager;
+    private readonly IPlaylistManager _playlistManager;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly DownloadIndex _index;
     private readonly ConcurrentDictionary<Guid, Job> _jobs = new();
+    private readonly ConcurrentDictionary<Guid, Addition> _additions = new();
     private readonly SemaphoreSlim _slots;
     /// <summary>Video ids of album tracks, by album id; albums rarely change, so look each up at most daily.</summary>
     private readonly ConcurrentDictionary<string, (DateTime Fetched, IReadOnlyList<string> VideoIds)> _albumTracks = new();
@@ -44,6 +51,7 @@ public partial class DownloadManager
         YouTubeMusicClient youTubeMusic,
         ILibraryManager libraryManager,
         ITaskManager taskManager,
+        IPlaylistManager playlistManager,
         IHttpClientFactory httpClientFactory,
         DownloadIndex index)
     {
@@ -52,6 +60,7 @@ public partial class DownloadManager
         _youTubeMusic = youTubeMusic;
         _libraryManager = libraryManager;
         _taskManager = taskManager;
+        _playlistManager = playlistManager;
         _httpClientFactory = httpClientFactory;
         _index = index;
         var slots = Math.Clamp(Plugin.Instance?.Configuration.MaxConcurrentDownloads ?? 2, 1, 8);
@@ -73,27 +82,20 @@ public partial class DownloadManager
             .FirstOrDefault();
     }
 
-    public DownloadJobDto Enqueue(YouTubeSongDto song, Guid userId)
+    public DownloadJobDto Enqueue(YouTubeSongDto song, Guid userId) => EnqueueJob(song, userId).Dto;
+
+    private Job EnqueueJob(YouTubeSongDto song, Guid userId)
     {
-        if (!YtDlpService.IsValidVideoId(song.VideoId))
-        {
-            throw new ArgumentException("Invalid YouTube video id");
-        }
-
-        if (string.IsNullOrWhiteSpace(song.Title))
-        {
-            throw new ArgumentException("A title is required");
-        }
-
+        ValidateSong(song);
         var targetDir = GetDownloadDirectory()
             ?? throw new InvalidOperationException("No download folder configured and no music library found");
 
         // Requesting the same track again while it's being downloaded just returns the running job
         var running = _jobs.Values.FirstOrDefault(job =>
-            job.UserId == userId && job.Dto.VideoId == song.VideoId && job.Dto.State is DownloadState.Queued or DownloadState.Downloading);
+            job.UserId == userId && job.Dto.VideoId == song.VideoId && job.Dto.State is DownloadState.Queued or DownloadState.Downloading or DownloadState.Importing);
         if (running != null)
         {
-            return running.Dto;
+            return running;
         }
 
         var dto = new DownloadJobDto
@@ -104,11 +106,127 @@ public partial class DownloadManager
             State = DownloadState.Queued,
             CreatedAt = DateTime.UtcNow,
         };
-        var newJob = new Job(dto, userId);
+        var newJob = new Job(dto, userId, new TaskCompletionSource<Guid?>(TaskCreationOptions.RunContinuationsAsynchronously));
         _jobs[dto.Id] = newJob;
         PruneJobs();
         _ = Task.Run(() => ProcessAsync(newJob, song, targetDir));
+        return newJob;
+    }
+
+    private static void ValidateSong(YouTubeSongDto song)
+    {
+        if (!YtDlpService.IsValidVideoId(song.VideoId))
+        {
+            throw new ArgumentException("Invalid YouTube video id");
+        }
+
+        if (string.IsNullOrWhiteSpace(song.Title))
+        {
+            throw new ArgumentException("A title is required");
+        }
+    }
+
+    /// <summary>
+    /// Adds <paramref name="songs"/> to <paramref name="playlist"/> in the given order, downloading those that aren't
+    /// in the library yet; tracks already in the playlist are skipped. Runs in the background, also if the client goes
+    /// away. <paramref name="mayDownload"/> tells whether the user may download tracks that aren't in the library.
+    /// </summary>
+    public PlaylistAdditionDto AddToPlaylist(Playlist playlist, IReadOnlyList<YouTubeSongDto> songs, Guid userId, bool mayDownload)
+    {
+        foreach (var song in songs)
+        {
+            ValidateSong(song);
+        }
+
+        var paths = songs.Select(song => _index.FindPath(song.VideoId)).ToList();
+        if (!mayDownload && paths.Any(path => path == null))
+        {
+            throw new UnauthorizedAccessException("Only administrators may download into the library (see the KMusicPlayer plugin settings)");
+        }
+
+        var entries = songs.Select((song, i) => new AdditionEntry(song, paths[i], paths[i] == null ? EnqueueJob(song, userId) : null)).ToList();
+        var dto = new PlaylistAdditionDto
+        {
+            Id = Guid.NewGuid(),
+            PlaylistId = playlist.Id.ToString("N"),
+            PlaylistName = playlist.Name,
+            Total = songs.Count,
+            Jobs = entries.Select(entry => entry.Job?.Dto).OfType<DownloadJobDto>().ToList(),
+            CreatedAt = DateTime.UtcNow,
+        };
+        var addition = new Addition(dto, userId);
+        _additions[dto.Id] = addition;
+        PruneAdditions();
+        _ = Task.Run(() => ProcessAdditionAsync(addition, playlist.Id, entries));
         return dto;
+    }
+
+    public PlaylistAdditionDto? GetAddition(Guid id, Guid userId) =>
+        _additions.TryGetValue(id, out var addition) && addition.UserId == userId ? addition.Dto : null;
+
+    public IReadOnlyList<PlaylistAdditionDto> GetAdditions(Guid userId) =>
+        _additions.Values.Where(addition => addition.UserId == userId).Select(addition => addition.Dto).OrderByDescending(dto => dto.CreatedAt).ToList();
+
+    /// <summary>Adds the tracks one after another, so the playlist gets them in the requested order however downloads finish.</summary>
+    private async Task ProcessAdditionAsync(Addition addition, Guid playlistId, IReadOnlyList<AdditionEntry> entries)
+    {
+        var dto = addition.Dto;
+        foreach (var entry in entries)
+        {
+            try
+            {
+                var itemId = await GetLibraryItemAsync(entry).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("It didn't show up in the library, the library scan may still be running");
+                // Re-read every time: the playlist may have been edited while the downloads ran
+                var playlist = _libraryManager.GetItemById(playlistId) as Playlist
+                    ?? throw new InvalidOperationException("The playlist was deleted");
+                if (playlist.GetManageableItems().Any(item => item.Item2?.Id == itemId))
+                {
+                    dto.AlreadyInPlaylist++;
+                    continue;
+                }
+
+                await _playlistManager.AddItemToPlaylistAsync(playlistId, [itemId], null, addition.UserId).ConfigureAwait(false);
+                dto.Added++;
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "Could not add {VideoId} to playlist {PlaylistId}", entry.Song.VideoId, playlistId);
+                lock (dto.Failures)
+                {
+                    dto.Failures.Add(entry.Song.Title + ": " + e.Message);
+                }
+            }
+        }
+
+        dto.Finished = true;
+    }
+
+    /// <summary>Returns the library item of the entry's track, waiting for its download and the library scan.</summary>
+    private async Task<Guid?> GetLibraryItemAsync(AdditionEntry entry)
+    {
+        var path = entry.Path;
+        if (entry.Job != null)
+        {
+            var imported = await entry.Job.Imported.Task.ConfigureAwait(false);
+            if (imported != null)
+            {
+                return imported;
+            }
+
+            path = entry.Job.Dto.Path;
+        }
+        else if (_libraryManager.FindByPath(path!, false) is { } item)
+        {
+            return item.Id;
+        }
+        else
+        {
+            // Downloaded, but not scanned yet
+            QueueLibraryScan();
+        }
+
+        return path != null ? await WaitForItemAsync(path, PlaylistImportTimeout).ConfigureAwait(false) : null;
     }
 
     /// <summary>Returns those of <paramref name="videoIds"/> that are already in the download folder.</summary>
@@ -194,12 +312,14 @@ public partial class DownloadManager
             }
 
             job.Dto.State = DownloadState.Completed;
+            job.Imported.TrySetResult(itemId);
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Downloading {VideoId} failed", song.VideoId);
             job.Dto.Message = e.Message;
             job.Dto.State = DownloadState.Failed;
+            job.Imported.TrySetException(e);
         }
     }
 
@@ -317,7 +437,13 @@ public partial class DownloadManager
     }
 
     /// <summary>Queues a library scan and waits (bounded) for the track to show up. Returns its item id if it did.</summary>
-    private async Task<Guid?> ImportAsync(string path)
+    private Task<Guid?> ImportAsync(string path)
+    {
+        QueueLibraryScan();
+        return WaitForItemAsync(path, ImportTimeout);
+    }
+
+    private void QueueLibraryScan()
     {
         var scan = _taskManager.ScheduledTasks.FirstOrDefault(task => task.ScheduledTask.Key == "RefreshLibrary");
         if (scan != null)
@@ -329,8 +455,11 @@ public partial class DownloadManager
         {
             _ = _libraryManager.ValidateMediaLibrary(new Progress<double>(), CancellationToken.None);
         }
+    }
 
-        var deadline = DateTime.UtcNow + ImportTimeout;
+    private async Task<Guid?> WaitForItemAsync(string path, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
             await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
@@ -355,6 +484,17 @@ public partial class DownloadManager
         }
     }
 
+    private void PruneAdditions()
+    {
+        foreach (var old in _additions.Values
+                     .Where(addition => addition.Dto.Finished)
+                     .OrderByDescending(addition => addition.Dto.CreatedAt)
+                     .Skip(MaxRetainedAdditions))
+        {
+            _additions.TryRemove(old.Dto.Id, out _);
+        }
+    }
+
     private static string SanitizeFileName(string name)
     {
         var sanitized = InvalidFileNameChars().Replace(name, "_").Trim().Trim('.');
@@ -369,5 +509,11 @@ public partial class DownloadManager
     [GeneratedRegex(@"[\\/:*?""<>|\p{Cc}]")]
     private static partial Regex InvalidFileNameChars();
 
-    private sealed record Job(DownloadJobDto Dto, Guid UserId);
+    /// <summary><paramref name="Imported"/> completes with the library item id (null if the scan didn't find it in time).</summary>
+    private sealed record Job(DownloadJobDto Dto, Guid UserId, TaskCompletionSource<Guid?> Imported);
+
+    private sealed record Addition(PlaylistAdditionDto Dto, Guid UserId);
+
+    /// <summary>A track to add to a playlist: <paramref name="Path"/> if downloaded before, else its download <paramref name="Job"/>.</summary>
+    private sealed record AdditionEntry(YouTubeSongDto Song, string? Path, Job? Job);
 }

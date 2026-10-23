@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.KMusicPlayer.Services;
+using MediaBrowser.Controller.Playlists;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -28,18 +29,21 @@ public class KMusicPlayerController : ControllerBase
     private readonly YtDlpService _ytDlp;
     private readonly YouTubeMusicClient _youTubeMusic;
     private readonly DownloadManager _downloads;
+    private readonly IPlaylistManager _playlistManager;
     private readonly ILogger<KMusicPlayerController> _logger;
 
     public KMusicPlayerController(
         YtDlpService ytDlp,
         YouTubeMusicClient youTubeMusic,
         DownloadManager downloads,
+        IPlaylistManager playlistManager,
         ILogger<KMusicPlayerController> logger)
     {
         _logger = logger;
         _ytDlp = ytDlp;
         _youTubeMusic = youTubeMusic;
         _downloads = downloads;
+        _playlistManager = playlistManager;
     }
 
     /// <summary>Tells clients the plugin is installed and whether the user may download.</summary>
@@ -55,6 +59,7 @@ public class KMusicPlayerController : ControllerBase
             DownloadDirectory = _downloads.GetDownloadDirectory(),
             Warning = _ytDlp.CookiesWarning,
             VideoAvailable = true,
+            PlaylistAdditionAvailable = true,
         };
     }
 
@@ -180,6 +185,56 @@ public class KMusicPlayerController : ControllerBase
     [HttpPost("YouTube/Albums/Downloaded")]
     public async Task<ActionResult<IReadOnlyList<string>>> GetDownloadedAlbums([FromBody] List<string> albumIds, CancellationToken cancellationToken) =>
         Ok(await _downloads.FindDownloadedAlbumsAsync(albumIds.Where(YouTubeMusicClient.IsValidAlbumId).Take(200), cancellationToken).ConfigureAwait(false));
+
+    /// <summary>
+    /// Adds YouTube Music tracks to a playlist of the user, in the given order. Tracks that aren't in the library are
+    /// downloaded first; they are added once the library scan found them, in the background. Returns the progress.
+    /// </summary>
+    [HttpPost("YouTube/Playlists/{playlistId}/Items")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public ActionResult<PlaylistAdditionDto> AddToPlaylist([FromRoute] Guid playlistId, [FromBody] List<YouTubeSongDto> songs)
+    {
+        if (songs.Count is 0 or > 500)
+        {
+            return Problem("Between 1 and 500 tracks can be added at once", statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var playlist = _playlistManager.GetPlaylistForUser(playlistId, UserId);
+        if (playlist == null)
+        {
+            return NotFound();
+        }
+
+        if (playlist.OwnerUserId != UserId && !playlist.Shares.Any(share => share.UserId == UserId && share.CanEdit))
+        {
+            return Problem("You may not edit this playlist", statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        try
+        {
+            var addition = _downloads.AddToPlaylist(playlist, songs, UserId, MayDownload());
+            return AcceptedAtAction(nameof(GetPlaylistAddition), new { id = addition.Id }, addition);
+        }
+        catch (UnauthorizedAccessException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status403Forbidden);
+        }
+        catch (ArgumentException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        catch (InvalidOperationException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+
+    [HttpGet("YouTube/Playlists/Additions")]
+    public ActionResult<IReadOnlyList<PlaylistAdditionDto>> GetPlaylistAdditions() => Ok(_downloads.GetAdditions(UserId));
+
+    [HttpGet("YouTube/Playlists/Additions/{id}")]
+    public ActionResult<PlaylistAdditionDto> GetPlaylistAddition([FromRoute] Guid id) =>
+        _downloads.GetAddition(id, UserId) is { } addition ? addition : NotFound();
 
     [HttpGet("Downloads")]
     public ActionResult<IReadOnlyList<DownloadJobDto>> GetDownloads() => Ok(_downloads.GetJobs(UserId));

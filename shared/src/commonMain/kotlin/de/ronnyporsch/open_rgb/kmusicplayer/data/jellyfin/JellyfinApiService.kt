@@ -225,6 +225,20 @@ class JellyfinApiService {
         return response.body()
     }
 
+    /** Adds [songs] to the playlist in the background, downloading them first, see [PluginInfoDto.playlistAdditionAvailable]. */
+    suspend fun addYouTubeToPlaylist(playlistId: String, songs: List<YouTubeSongDto>): PlaylistAdditionDto {
+        val response = client.post("${baseUrl()}/KMusicPlayer/YouTube/Playlists/$playlistId/Items") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(songs)
+        }
+        response.ensureSuccess()
+        return response.body()
+    }
+
+    suspend fun getPlaylistAddition(additionId: String): PlaylistAdditionDto =
+        get("KMusicPlayer/YouTube/Playlists/Additions/$additionId", emptyMap())
+
     suspend fun getDownload(jobId: String): DownloadJobDto = get("KMusicPlayer/Downloads/$jobId", emptyMap())
 
     /**

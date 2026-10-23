@@ -1,6 +1,8 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.data.youtube
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.DownloadedTrackDto
+import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.DownloadJobDto
+import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.PlaylistAdditionDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.YouTubeAlbumDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.YouTubeAlbumSummaryDto
@@ -36,6 +38,8 @@ data class YouTubeCapabilities(
     val canDownload: Boolean = false,
     /** Whether search finds videos too, which can be played with picture. */
     val videos: Boolean = false,
+    /** Whether songs can be added to playlists (the server downloads them into its library first). */
+    val addToPlaylists: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -93,6 +97,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             available = server != null,
             canDownload = server?.canDownload == true,
             videos = server?.videoAvailable == true,
+            addToPlaylists = server?.playlistAdditionAvailable == true,
         )
     }
 
@@ -186,11 +191,56 @@ class YouTubeService(private val connection: MusicServerConnection) {
                     setStatus(song.id, DownloadStatus.Failed(e.message ?: "Download failed"))
                 }
             }
-            if (runningJobs.isNotEmpty() && pollJob?.isActive != true) pollJob = scope.launch { poll() }
+            startPolling()
         }
     }
 
     fun download(song: Song) = download(listOf(song))
+
+    /**
+     * Adds [songs] to the playlist with [playlistId], in their order. The server downloads those that aren't in its
+     * library first ([downloads] reports their progress) and adds them in the background, also if this client goes
+     * away. Calls [onStarted] once the server accepted, [onProgress] whenever more songs got added, and returns the
+     * outcome once all songs are added or failed.
+     */
+    suspend fun addToPlaylist(
+        playlistId: String,
+        songs: List<Song>,
+        onStarted: suspend (PlaylistAdditionDto) -> Unit = {},
+        onProgress: suspend (PlaylistAdditionDto) -> Unit = {},
+    ): PlaylistAdditionDto {
+        var addition = connection.jellyfinApi.addYouTubeToPlaylist(playlistId, songs.map { it.toDto() })
+        track(addition.jobs)
+        onStarted(addition)
+        var failures = 0
+        while (!addition.finished) {
+            delay(2000)
+            val previous = addition
+            addition = try {
+                connection.jellyfinApi.getPlaylistAddition(addition.id).also { failures = 0 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (++failures >= 5) throw e
+                continue
+            }
+            if (addition.added != previous.added) onProgress(addition)
+        }
+        return addition
+    }
+
+    /** Shows the progress of download [jobs] the server started on its own. */
+    private fun track(jobs: List<DownloadJobDto>) {
+        if (jobs.isEmpty()) return
+        scope.launch {
+            for (job in jobs) update(job.id, YOUTUBE_SONG_ID_PREFIX + job.videoId, job.state, job.message, job.path)
+            startPolling()
+        }
+    }
+
+    private fun startPolling() {
+        if (runningJobs.isNotEmpty() && pollJob?.isActive != true) pollJob = scope.launch { poll() }
+    }
 
     /** Polls all running jobs at once, so that downloading an album doesn't poll the server for every track. */
     private suspend fun poll() {
@@ -218,7 +268,10 @@ class YouTubeService(private val connection: MusicServerConnection) {
     private fun update(jobId: String, songId: String, state: String, message: String?, path: String?) {
         when (state) {
             // Done once the file is in the library folder; the server scans it in the background
-            "Queued", "Downloading" -> runningJobs[jobId] = songId
+            "Queued", "Downloading" -> {
+                runningJobs[jobId] = songId
+                if (_downloads.value[songId] != DownloadStatus.InProgress) setStatus(songId, DownloadStatus.InProgress)
+            }
             "Failed" -> {
                 runningJobs.remove(jobId)
                 setStatus(songId, DownloadStatus.Failed(message ?: "Download failed"))

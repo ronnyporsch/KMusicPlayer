@@ -116,6 +116,8 @@ data class PluginInfoDto(
     @SerialName("Warning") val warning: String? = null,
     /** Whether search includes videos and videos can be streamed with picture (plugin 1.8.0.0 and later). */
     @SerialName("VideoAvailable") val videoAvailable: Boolean = false,
+    /** Whether YouTube Music tracks can be added to playlists, see [PlaylistAdditionDto] (plugin 1.9.0.0 and later). */
+    @SerialName("PlaylistAdditionAvailable") val playlistAdditionAvailable: Boolean = false,
 )
 
 @Serializable
@@ -195,6 +197,21 @@ data class DownloadJobDto(
 ) {
     val isFinished: Boolean get() = state == "Completed" || state == "Failed"
 }
+
+/** YouTube Music tracks the plugin adds to a playlist, downloading those that aren't in the library first. */
+@Serializable
+data class PlaylistAdditionDto(
+    @SerialName("Id") val id: String,
+    @SerialName("PlaylistName") val playlistName: String = "",
+    @SerialName("Total") val total: Int = 0,
+    @SerialName("Added") val added: Int = 0,
+    @SerialName("AlreadyInPlaylist") val alreadyInPlaylist: Int = 0,
+    /** Why tracks couldn't be added, one entry per track. */
+    @SerialName("Failures") val failures: List<String> = emptyList(),
+    @SerialName("Finished") val finished: Boolean = false,
+    /** Downloads of the tracks that weren't in the library. */
+    @SerialName("Jobs") val jobs: List<DownloadJobDto> = emptyList(),
+)
 
 /** A downloaded YouTube Music track; [codec] is a display name, [bitRate] in kbps. */
 @Serializable

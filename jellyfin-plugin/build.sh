@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION=1.8.2.0
+VERSION=1.9.0.0
 TARGET_ABI=12.2.0.0
 BASE_URL=${1:-http://localhost:8765}
 DOTNET=${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}

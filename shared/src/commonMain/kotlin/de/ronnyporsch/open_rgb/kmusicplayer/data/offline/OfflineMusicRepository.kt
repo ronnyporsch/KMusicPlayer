@@ -90,7 +90,8 @@ class OfflineMusicRepository(
 
     private suspend fun library() = OfflineLibrary(downloads.downloadedSongs())
 
-    private suspend fun changed(playlistId: String) {
+    /** Tells about a change of a playlist made without this repository, e.g. by the server. */
+    suspend fun changed(playlistId: String) {
         downloads.onPlaylistChanged(playlistId)
         _playlistChanges.emit(playlistId)
     }

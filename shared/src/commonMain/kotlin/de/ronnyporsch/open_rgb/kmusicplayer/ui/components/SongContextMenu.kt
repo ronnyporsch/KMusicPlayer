@@ -19,25 +19,37 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import de.ronnyporsch.open_rgb.kmusicplayer.data.jellyfin.PlaylistAdditionDto
 import de.ronnyporsch.open_rgb.kmusicplayer.data.offline.PlaylistDownloads
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.YouTubeService
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTube
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Adds songs to playlists from the song context menu (and drag and drop), on any screen. Reports the outcome to [onMessage]. */
+/**
+ * Adds songs to playlists from the song context menu (and drag and drop), on any screen. Reports the outcome to
+ * [onMessage]. YouTube Music songs get downloaded into the library by the server, see [YouTubeService.addToPlaylist];
+ * [onPlaylistChanged] tells about the playlists it changed.
+ */
 class PlaylistEditor(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
+    private val youTube: YouTubeService? = null,
+    private val onPlaylistChanged: suspend (playlistId: String) -> Unit = {},
     private val onMessage: suspend (String) -> Unit,
 ) {
+    /** Whether YouTube Music songs can be added to playlists. */
+    val canAddYouTube: Boolean get() = youTube?.currentCapabilities?.addToPlaylists == true
+
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
 
@@ -47,10 +59,13 @@ class PlaylistEditor(
 
     /** Adds [songs] that aren't in the playlist yet; a playlist never contains a song twice. */
     fun addToPlaylist(playlist: Playlist, songs: List<Song>) {
+        val (youTubeSongs, songs) = songs.distinctBy { it.id }.partition { it.isYouTube }
+        if (youTubeSongs.isNotEmpty()) addYouTube(playlist.id, playlist.name, youTubeSongs)
+        if (songs.isEmpty()) return
         scope.launch {
             // If the playlist can't be loaded, add anyway rather than not at all
             val existingIds = repository.getPlaylist(playlist.id).getOrNull()?.songs.orEmpty().map { it.id }.toSet()
-            val (duplicates, new) = songs.distinctBy { it.id }.partition { it.id in existingIds }
+            val (duplicates, new) = songs.partition { it.id in existingIds }
             if (new.isEmpty()) {
                 val what = duplicates.singleOrNull()?.let { "\"${it.title}\" is" } ?: "These songs are"
                 onMessage("$what already in \"${playlist.name}\"")
@@ -67,10 +82,51 @@ class PlaylistEditor(
 
     fun createPlaylist(name: String, songs: List<Song>) {
         scope.launch {
-            val songs = songs.distinctBy { it.id }
+            val (youTubeSongs, songs) = songs.distinctBy { it.id }.partition { it.isYouTube }
             repository.createPlaylist(name, songs.map { it.id })
-                .onSuccess { onMessage("Created \"$name\" with ${songs.describe()}") }
+                .onSuccess { playlist ->
+                    if (youTubeSongs.isNotEmpty()) addYouTube(playlist.id, name, youTubeSongs)
+                    onMessage(if (songs.isEmpty()) "Created \"$name\"" else "Created \"$name\" with ${songs.describe()}")
+                }
                 .onFailure { onMessage("Couldn't create \"$name\": ${it.message}") }
+        }
+    }
+
+    /** YouTube Music [songs] aren't in the library; the server downloads them and adds them once it has them. */
+    private fun addYouTube(playlistId: String, playlistName: String, songs: List<Song>) {
+        val youTube = youTube?.takeIf { canAddYouTube } ?: return
+        scope.launch {
+            try {
+                val addition = youTube.addToPlaylist(
+                    playlistId,
+                    songs,
+                    onStarted = { addition ->
+                        // Don't hold up the polling while the message shows
+                        if (addition.jobs.isNotEmpty()) {
+                            val what = addition.jobs.singleOrNull()?.let { "\"${it.title}\"" } ?: "${addition.jobs.size} songs"
+                            scope.launch { onMessage("Downloading $what to add to \"$playlistName\"") }
+                        }
+                    },
+                    onProgress = { onPlaylistChanged(playlistId) },
+                )
+                onPlaylistChanged(playlistId)
+                onMessage(addition.describe(songs, playlistName))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onMessage("Couldn't add to \"$playlistName\": ${e.message}")
+            }
+        }
+    }
+
+    private fun PlaylistAdditionDto.describe(songs: List<Song>, playlistName: String): String {
+        val single = songs.singleOrNull()
+        return when {
+            failures.isNotEmpty() && single != null -> "Couldn't add \"${single.title}\" to \"$playlistName\": ${failures.single().substringAfter(": ")}"
+            failures.isNotEmpty() -> "Added $added of $total songs to \"$playlistName\", ${failures.size} failed: ${failures.first()}"
+            added == 0 -> "${single?.let { "\"${it.title}\" is" } ?: "These songs are"} already in \"$playlistName\""
+            alreadyInPlaylist > 0 -> "Added $added songs to \"$playlistName\" ($alreadyInPlaylist already in it)"
+            else -> "Added ${songs.describe()} to \"$playlistName\""
         }
     }
 
@@ -112,8 +168,8 @@ fun SongContextMenu(
     val addToQueue = LocalAddToQueue.current
     val songDownloads = LocalSongDownloads.current
     if (editor == null && addToQueue == null && onRemoveFromPlaylist == null && songDownloads == null) return
-    // YouTube Music results aren't in the library, so they can't be added to playlists
-    val canAddToPlaylist = editor != null && songs.none { it.isYouTube }
+    // YouTube Music results aren't in the library; the server downloads them first where it can
+    val canAddToPlaylist = editor != null && (editor.canAddYouTube || songs.none { it.isYouTube })
     var showPlaylists by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     // The menu forgets the songs when it closes, but the dialog outlives it

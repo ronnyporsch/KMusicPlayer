@@ -63,6 +63,16 @@ public partial class DownloadIndex
         }
     }
 
+    /// <summary>Returns the path of the downloaded file of <paramref name="videoId"/>, or null if it isn't downloaded.</summary>
+    public string? FindPath(string videoId)
+    {
+        lock (_lock)
+        {
+            Load();
+            return _pathsByVideoId.TryGetValue(videoId, out var path) && File.Exists(path) ? path : null;
+        }
+    }
+
     /// <summary>Records a finished download.</summary>
     public void Add(string videoId, string path)
     {
