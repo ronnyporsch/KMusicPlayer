@@ -1,7 +1,13 @@
 # Builds the desktop app from the committed HEAD of the repository this PKGBUILD lives in.
 # Usage: cd packaging/arch && makepkg -si
 pkgname=kmusicplayer
-pkgver=1.0.0.r3.gdf3360f
+# Derived from the latest vX.Y.Z tag at load time instead of a pkgver() function, so makepkg
+# never rewrites this file.
+_repo=${startdir%/packaging/arch}
+_tag=$(git -C "$_repo" describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo v1.0.0)
+pkgver=$(printf '%s.r%s.g%s' "${_tag#v}" \
+    "$(git -C "$_repo" rev-list --count "$_tag"..HEAD 2>/dev/null || echo 0)" \
+    "$(git -C "$_repo" rev-parse --short HEAD)")
 pkgrel=1
 pkgdesc='Music player for Jellyfin and Subsonic/Navidrome servers'
 arch=('x86_64' 'aarch64')
@@ -11,19 +17,12 @@ depends=('java-runtime>=21' 'hicolor-icon-theme')
 makedepends=('git')
 optdepends=('vlc: YouTube video playback')
 options=('!debug')
-source=("$pkgname::git+file://${startdir%/packaging/arch}"
+source=("$pkgname::git+file://$_repo"
         'kmusicplayer.desktop'
         'kmusicplayer.sh')
 sha256sums=('SKIP'
             'SKIP'
             'SKIP')
-
-pkgver() {
-    cd "$pkgname"
-    local tag
-    tag=$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo v1.0.0)
-    printf '%s.r%s.g%s' "${tag#v}" "$(git rev-list --count "$tag"..HEAD 2>/dev/null || echo 0)" "$(git rev-parse --short HEAD)"
-}
 
 build() {
     cd "$pkgname"
