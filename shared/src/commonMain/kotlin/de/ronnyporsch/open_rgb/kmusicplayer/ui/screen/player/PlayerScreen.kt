@@ -213,11 +213,8 @@ fun PlayerScreen(
                     val pos = (fraction * playback.durationMs).toLong()
                     viewModel.onEvent(PlayerEvent.SeekTo(pos))
                 },
-                colors = SliderDefaults.colors(
-                    thumbColor = AccentColor,
-                    activeTrackColor = AccentColor,
-                    inactiveTrackColor = SpotifySurface,
-                ),
+                colors = SliderDefaults.colors(thumbColor = AccentColor),
+                track = { PlainSliderTrack(it, SpotifySurface) },
             )
 
             Row(

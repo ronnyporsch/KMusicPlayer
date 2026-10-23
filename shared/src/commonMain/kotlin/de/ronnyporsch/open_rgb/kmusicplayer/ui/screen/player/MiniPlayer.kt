@@ -103,15 +103,11 @@ fun MiniPlayer(
                 onValueChange = {
                     viewModel.onEvent(PlayerEvent.SeekTo((it * playback.durationMs).toLong()))
                 },
-                modifier = Modifier.fillMaxWidth().height(2.dp),
-                colors = SliderDefaults.colors(
-                    activeTrackColor = AccentColor,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    thumbColor = Color.Transparent
-                ),
+                modifier = Modifier.fillMaxWidth().height(4.dp),
                 thumb = {
                     // Empty thumb to keep it looking like a progress bar
-                }
+                },
+                track = { PlainSliderTrack(it, MaterialTheme.colorScheme.surfaceVariant) },
             )
         }
 

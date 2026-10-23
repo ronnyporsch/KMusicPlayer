@@ -28,6 +28,10 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = SpotifySurface,
     onSurfaceVariant = SpotifyLightGray,
     tertiary = SpotifyLightGray,
+    // Snackbar colors
+    inverseSurface = Color(0xFF3A3A3A),
+    inverseOnSurface = SpotifyWhite,
+    inversePrimary = AccentColor,
     error = Color(0xFFCF6679),
     onError = SpotifyBlack,
 )

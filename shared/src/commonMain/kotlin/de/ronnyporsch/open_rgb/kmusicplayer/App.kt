@@ -54,6 +54,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.search.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.settings.*
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.KMusicPlayerTheme
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsScreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.AppSnackbarHost
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalFavorites
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalAddToQueue
@@ -309,7 +310,7 @@ fun App() {
                 onForward = { if (navigator.canGoForward()) navigator.forward() }
             ),
             containerColor = MaterialTheme.colorScheme.background,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
+            snackbarHost = { AppSnackbarHost(snackbarHostState) },
             topBar = {
                 if (currentScreen !is Screen.Login && currentScreen !is Screen.Player) {
                     val searchState by searchViewModel.state.collectAsState()
