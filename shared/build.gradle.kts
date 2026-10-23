@@ -24,7 +24,7 @@ kotlin {
     }
 
     android {
-        namespace = "de.ronnyporsch.open_rgb.kmusicplayer.shared"
+        namespace = "de.ronnyporsch.kmusicplayer.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 

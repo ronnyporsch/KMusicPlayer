@@ -27,7 +27,7 @@
             </intent-filter>
         </activity>
         <service
-                android:name="de.ronnyporsch.open_rgb.kmusicplayer.platform.PlaybackService"
+                android:name="de.ronnyporsch.kmusicplayer.platform.PlaybackService"
                 android:exported="true"
                 android:foregroundServiceType="mediaPlayback">
             <!-- MediaBrowserService: how Google Maps (and Android Auto) find the app's library and controls -->

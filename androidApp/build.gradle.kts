@@ -22,10 +22,11 @@ dependencies {
 val appVersion: String by rootProject.extra
 
 android {
-    namespace = "de.ronnyporsch.open_rgb.kmusicplayer"
+    namespace = "de.ronnyporsch.kmusicplayer"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
+        // Kept from the old package name so existing installs update in place
         applicationId = "de.ronnyporsch.open_rgb.kmusicplayer"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()

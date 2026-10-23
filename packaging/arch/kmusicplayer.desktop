@@ -8,4 +8,4 @@ Icon=kmusicplayer
 Terminal=false
 Categories=AudioVideo;Audio;Player;
 Keywords=music;jellyfin;navidrome;subsonic;youtube;
-StartupWMClass=de-ronnyporsch-open_rgb-kmusicplayer-MainKt
+StartupWMClass=de-ronnyporsch-kmusicplayer-MainKt

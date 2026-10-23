@@ -1,0 +1,19 @@
+package de.ronnyporsch.kmusicplayer
+
+import web.navigator.navigator
+
+class JsPlatform : Platform {
+    private val userAgent = navigator.userAgent
+    private val browserList = listOf("Chrome", "Firefox", "Safari", "Edge")
+
+    override val name: String = userAgent.findAnyOf(browserList, ignoreCase = true)
+        ?.let { (startIndex) -> userAgent.substring(startIndex).substringBefore(" ") }
+        ?: "Unknown"
+
+    override val deviceName: String = userAgent.findAnyOf(browserList, ignoreCase = true)?.second ?: "Web browser"
+
+    override val isMobile: Boolean = false
+    override val audioContainers: List<String> = BROWSER_AUDIO_CONTAINERS
+}
+
+actual fun getPlatform(): Platform = JsPlatform()
