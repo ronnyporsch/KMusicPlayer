@@ -49,10 +49,12 @@ sealed class LibraryEvent {
     data object ConnectionFailed : LibraryEvent()
     data class DownloadPlaylist(val playlist: Playlist) : LibraryEvent()
     data class RemovePlaylistDownload(val playlist: Playlist) : LibraryEvent()
-    /** Mobile: open the item on its own screen instead of the detail pane. */
+    /** Open the item on its own screen instead of the detail pane (mobile, albums of the artist pane). */
     data class OpenArtistScreen(val artist: Artist) : LibraryEvent()
     data class OpenAlbumScreen(val album: Album) : LibraryEvent()
     data class OpenPlaylistScreen(val playlist: Playlist) : LibraryEvent()
+    /** Shows the item in the detail pane, unless it is shown already. */
+    data class Show(val selection: LibrarySelection) : LibraryEvent()
     data class ArtistClicked(val artist: Artist) : LibraryEvent()
     data class ArtistDoubleClicked(val artist: Artist) : LibraryEvent()
     data object PlayAllArtistSongs : LibraryEvent()
@@ -61,7 +63,6 @@ sealed class LibraryEvent {
     data class ArtistSongDoubleClicked(val song: Song, val index: Int) : LibraryEvent()
     data class AlbumClicked(val album: Album) : LibraryEvent()
     data class AlbumDoubleClicked(val album: Album) : LibraryEvent()
-    data class AlbumOpened(val album: Album) : LibraryEvent()
     data object PlayAllAlbumSongs : LibraryEvent()
     data object ShuffleAllAlbumSongs : LibraryEvent()
     data class PlaylistClicked(val playlist: Playlist) : LibraryEvent()

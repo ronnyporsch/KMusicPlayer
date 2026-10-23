@@ -83,6 +83,14 @@ class LibraryViewModel(
             is LibraryEvent.ConnectionFailed -> if (currentState.isLoading) loadOffline()
             is LibraryEvent.DownloadPlaylist -> downloads?.download(event.playlist)
             is LibraryEvent.RemovePlaylistDownload -> downloads?.remove(event.playlist.id)
+            is LibraryEvent.Show -> if (currentState.selection?.key != event.selection.key) {
+                when (val selection = event.selection) {
+                    is LibrarySelection.Artist -> onEvent(LibraryEvent.ArtistClicked(selection.artist))
+                    is LibrarySelection.Album -> onEvent(LibraryEvent.AlbumClicked(selection.album))
+                    is LibrarySelection.Playlist -> selectPlaylist(selection.playlistId)
+                    LibrarySelection.FavoriteSongs -> onEvent(LibraryEvent.FavoriteSongsClicked)
+                }
+            }
             is LibraryEvent.ArtistClicked -> {
                 setState {
                     copy(
@@ -176,30 +184,6 @@ class LibraryViewModel(
                     }
                 }
             }
-            is LibraryEvent.AlbumOpened -> {
-                setState {
-                    copy(
-                        activeDetailView = LibraryDetailView.Albums,
-                        selectedAlbum = event.album,
-                        selectedAlbumId = event.album.id,
-                        selectedArtistId = null,
-                        selectedArtist = null,
-                        selectedArtistAlbums = emptyList(),
-                        selectedArtistAppearsOnAlbums = emptyList(),
-                        selectedArtistBiography = null,
-                        selectedArtistLargeImageUrl = null,
-                        selectedArtistSongs = emptyList(),
-                        selectedArtistSongsLoading = false,
-                        selectedPlaylistId = null,
-                        selectedPlaylist = null,
-                        selectedPlaylistLoading = false,
-                    )
-                }
-                if (event.album.id.isNotEmpty()) {
-                    loadAlbum(event.album.id)
-                    emitEffect(LibraryEffect.NavigateToAlbum(event.album.id))
-                }
-            }
             is LibraryEvent.PlayAllAlbumSongs -> {
                 val songs = currentState.selectedAlbum?.songs.orEmpty()
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
@@ -208,27 +192,7 @@ class LibraryViewModel(
                 val songs = currentState.selectedAlbum?.songs.orEmpty()
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
             }
-            is LibraryEvent.PlaylistClicked -> {
-                setState {
-                    copy(
-                        activeDetailView = LibraryDetailView.Playlists,
-                        selectedPlaylistId = event.playlist.id,
-                        selectedPlaylist = null,
-                        selectedPlaylistLoading = true,
-                        selectedArtistId = null,
-                        selectedArtist = null,
-                        selectedAlbumId = null,
-                        selectedAlbum = null,
-                        selectedArtistAlbums = emptyList(),
-                        selectedArtistAppearsOnAlbums = emptyList(),
-                        selectedArtistBiography = null,
-                        selectedArtistLargeImageUrl = null,
-                        selectedArtistSongs = emptyList(),
-                        selectedArtistSongsLoading = false,
-                    )
-                }
-                loadPlaylist(event.playlist.id)
-            }
+            is LibraryEvent.PlaylistClicked -> selectPlaylist(event.playlist.id)
             is LibraryEvent.PlaylistDoubleClicked -> {
                 onEvent(LibraryEvent.PlaylistClicked(event.playlist))
                 launch {
@@ -314,6 +278,28 @@ class LibraryViewModel(
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
             }
         }
+    }
+
+    private fun selectPlaylist(playlistId: String) {
+        setState {
+            copy(
+                activeDetailView = LibraryDetailView.Playlists,
+                selectedPlaylistId = playlistId,
+                selectedPlaylist = null,
+                selectedPlaylistLoading = true,
+                selectedArtistId = null,
+                selectedArtist = null,
+                selectedAlbumId = null,
+                selectedAlbum = null,
+                selectedArtistAlbums = emptyList(),
+                selectedArtistAppearsOnAlbums = emptyList(),
+                selectedArtistBiography = null,
+                selectedArtistLargeImageUrl = null,
+                selectedArtistSongs = emptyList(),
+                selectedArtistSongsLoading = false,
+            )
+        }
+        loadPlaylist(playlistId)
     }
 
     /** Shows the playlists and downloaded songs stored on the device, as long as the server isn't reachable. */

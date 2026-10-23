@@ -1,12 +1,14 @@
 package de.ronnyporsch.kmusicplayer.ui.navigation
 
+import de.ronnyporsch.kmusicplayer.ui.screen.library.LibrarySelection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 sealed class Screen {
     data object Login : Screen()
-    data object Library : Screen()
+    /** [selection] is what the detail pane shows (desktop), null until it is known. */
+    data class Library(val selection: LibrarySelection? = null) : Screen()
     data class ArtistAlbums(val artistId: String?, val artistName: String) : Screen()
     data class AlbumSongs(val albumId: String) : Screen()
     data class PlaylistSongs(val playlistId: String) : Screen()

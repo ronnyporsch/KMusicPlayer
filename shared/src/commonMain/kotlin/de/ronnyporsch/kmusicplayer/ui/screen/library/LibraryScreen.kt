@@ -45,6 +45,8 @@ import kotlinx.coroutines.launch
 fun LibraryScreen(
     viewModel: LibraryViewModel,
     currentSongId: String? = null,
+    /** Desktop: opens an item of the sidebar in the detail pane, as a new entry of the back stack. */
+    onOpen: (LibrarySelection) -> Unit = { viewModel.onEvent(LibraryEvent.Show(it)) },
 ) {
     val state by viewModel.state.collectAsState()
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -90,6 +92,7 @@ fun LibraryScreen(
                 viewModel = viewModel,
                 currentSongId = currentSongId,
                 onCreatePlaylist = { showCreatePlaylistDialog = true },
+                onOpen = onOpen,
             )
         }
     }
@@ -101,6 +104,7 @@ private fun LibrarySplitView(
     viewModel: LibraryViewModel,
     currentSongId: String?,
     onCreatePlaylist: () -> Unit,
+    onOpen: (LibrarySelection) -> Unit,
 ) {
     // On mobile there is no room for a detail pane: the sidebar fills the screen and items open their own screens
     if (remember { getPlatform().isMobile }) {
@@ -119,6 +123,7 @@ private fun LibrarySplitView(
             state = state,
             viewModel = viewModel,
             onCreatePlaylist = onCreatePlaylist,
+            onOpen = onOpen,
             modifier = Modifier
                 .width(280.dp)
                 .fillMaxHeight(),
@@ -175,12 +180,12 @@ private fun CreatePlaylistDialog(viewModel: LibraryViewModel, onDismiss: () -> U
 
 /**
  * Desktop: the library sidebar next to screens other than the library, so it is always visible.
- * Opening an item from it goes back to the library, which shows the item in its detail pane.
+ * Opening an item from it goes to the library, which shows the item in its detail pane.
  */
 @Composable
 fun DesktopLibrarySidebar(
     viewModel: LibraryViewModel,
-    onItemOpened: () -> Unit,
+    onOpen: (LibrarySelection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -192,7 +197,7 @@ fun DesktopLibrarySidebar(
         state = state,
         viewModel = viewModel,
         onCreatePlaylist = { showCreatePlaylistDialog = true },
-        onItemOpened = onItemOpened,
+        onOpen = onOpen,
         modifier = modifier,
     )
 }
@@ -203,15 +208,18 @@ private fun LibrarySidebar(
     viewModel: LibraryViewModel,
     onCreatePlaylist: () -> Unit,
     openItemScreens: Boolean = false,
-    /** Called after an item was opened in the detail pane (not with [openItemScreens]). */
-    onItemOpened: () -> Unit = {},
+    /** Opens an item in the detail pane (not with [openItemScreens]). */
+    onOpen: (LibrarySelection) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Shown alone (mobile), the sidebar is the whole screen and shouldn't stand out from it
     val containerColor = if (openItemScreens) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceVariant
-    fun open(event: LibraryEvent) {
-        viewModel.onEvent(event)
-        if (!openItemScreens) onItemOpened()
+    fun open(selection: LibrarySelection, screenEvent: LibraryEvent) {
+        if (openItemScreens) viewModel.onEvent(screenEvent) else onOpen(selection)
+    }
+    fun openAndPlay(selection: LibrarySelection, playEvent: LibraryEvent) {
+        viewModel.onEvent(playEvent)
+        onOpen(selection)
     }
     Surface(
         modifier = modifier,
@@ -257,10 +265,10 @@ private fun LibrarySidebar(
                     artists = state.artists,
                     selectedArtistId = state.selectedArtistId,
                     onArtistClick = {
-                        open(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
+                        open(LibrarySelection.Artist(it), LibraryEvent.OpenArtistScreen(it))
                     },
                     onArtistDoubleClick = if (openItemScreens) null else {
-                        { open(LibraryEvent.ArtistDoubleClicked(it)) }
+                        { openAndPlay(LibrarySelection.Artist(it), LibraryEvent.ArtistDoubleClicked(it)) }
                     },
                     state = viewModel.artistSidebarState,
                     modifier = Modifier.fillMaxSize(),
@@ -268,19 +276,19 @@ private fun LibrarySidebar(
                 LibrarySidebarTab.Favorites -> FavoritesSidebar(
                     state = state,
                     onSongsClick = {
-                        open(if (openItemScreens) LibraryEvent.OpenFavoriteSongsScreen else LibraryEvent.FavoriteSongsClicked)
+                        open(LibrarySelection.FavoriteSongs, LibraryEvent.OpenFavoriteSongsScreen)
                     },
                     onArtistClick = {
-                        open(if (openItemScreens) LibraryEvent.OpenArtistScreen(it) else LibraryEvent.ArtistClicked(it))
+                        open(LibrarySelection.Artist(it), LibraryEvent.OpenArtistScreen(it))
                     },
                     onArtistDoubleClick = if (openItemScreens) null else {
-                        { open(LibraryEvent.ArtistDoubleClicked(it)) }
+                        { openAndPlay(LibrarySelection.Artist(it), LibraryEvent.ArtistDoubleClicked(it)) }
                     },
                     onAlbumClick = {
-                        open(if (openItemScreens) LibraryEvent.OpenAlbumScreen(it) else LibraryEvent.AlbumClicked(it))
+                        open(LibrarySelection.Album(it), LibraryEvent.OpenAlbumScreen(it))
                     },
                     onAlbumDoubleClick = if (openItemScreens) null else {
-                        { open(LibraryEvent.AlbumDoubleClicked(it)) }
+                        { openAndPlay(LibrarySelection.Album(it), LibraryEvent.AlbumDoubleClicked(it)) }
                     },
                     listState = viewModel.favoritesSidebarState,
                     modifier = Modifier.fillMaxSize(),
@@ -289,10 +297,10 @@ private fun LibrarySidebar(
                     playlists = state.playlists,
                     selectedPlaylistId = state.selectedPlaylistId,
                     onPlaylistClick = {
-                        open(if (openItemScreens) LibraryEvent.OpenPlaylistScreen(it) else LibraryEvent.PlaylistClicked(it))
+                        open(LibrarySelection.Playlist(it.id), LibraryEvent.OpenPlaylistScreen(it))
                     },
                     onPlaylistDoubleClick = if (openItemScreens) null else {
-                        { open(LibraryEvent.PlaylistDoubleClicked(it)) }
+                        { openAndPlay(LibrarySelection.Playlist(it.id), LibraryEvent.PlaylistDoubleClicked(it)) }
                     },
                     onCreatePlaylist = onCreatePlaylist,
                     state = viewModel.playlistSidebarState,
@@ -322,7 +330,7 @@ private fun LibraryDetailPane(
             largeImageUrl = state.selectedArtistLargeImageUrl,
             songs = state.selectedArtistSongs,
             isSongsLoading = state.selectedArtistSongsLoading,
-            onAlbumClick = { viewModel.onEvent(LibraryEvent.AlbumOpened(it)) },
+            onAlbumClick = { viewModel.onEvent(LibraryEvent.OpenAlbumScreen(it)) },
             onSongAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
             onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongClicked(song, index)) },
             onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.ArtistSongDoubleClicked(song, index)) },

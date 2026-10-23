@@ -72,6 +72,8 @@ import de.ronnyporsch.kmusicplayer.ui.components.onMouseNavigation
 import de.ronnyporsch.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.kmusicplayer.ui.theme.SpotifyLightGray
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -95,7 +97,7 @@ fun App() {
     val youTubeCapabilities by youTube.capabilities.collectAsState(youTube.currentCapabilities)
     // With saved login info, start directly on the library while auto-login is still connecting in the background
     val loggedIn = remember { session.autoLoginStatus.value.let { it != AutoLoginStatus.None && it !is AutoLoginStatus.Rejected } }
-    val navigator = remember { Navigator(if (loggedIn) Screen.Library else Screen.Login) }
+    val navigator = remember { Navigator(if (loggedIn) Screen.Library() else Screen.Login) }
     val playerViewModel = session.playerViewModel
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -423,7 +425,7 @@ fun App() {
                 if (showSidebar) {
                     DesktopLibrarySidebar(
                         viewModel = libraryViewModel,
-                        onItemOpened = { navigator.push(Screen.Library) },
+                        onOpen = { navigator.push(Screen.Library(it)) },
                         modifier = Modifier
                             .padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
                             .width(280.dp)
@@ -437,7 +439,7 @@ fun App() {
                         LaunchedEffect(vm) {
                             vm.effects.collectLatest { effect ->
                                 when (effect) {
-                                    LoginEffect.NavigateToLibrary -> navigator.replaceAll(Screen.Library)
+                                    LoginEffect.NavigateToLibrary -> navigator.replaceAll(Screen.Library())
                                 }
                             }
                         }
@@ -445,9 +447,20 @@ fun App() {
                     }
 
                     is Screen.Library -> {
+                        LaunchedEffect(screen) {
+                            val selection = screen.selection
+                            if (selection != null) {
+                                libraryViewModel.onEvent(LibraryEvent.Show(selection))
+                            } else {
+                                // Remember what the pane shows, so going back to this screen shows it again
+                                val shown = libraryViewModel.state.mapNotNull { it.selection }.first()
+                                navigator.replace(Screen.Library(shown))
+                            }
+                        }
                         LibraryScreen(
                             viewModel = libraryViewModel,
-                            currentSongId = playerState.playback.currentSong?.id
+                            currentSongId = playerState.playback.currentSong?.id,
+                            onOpen = { navigator.push(Screen.Library(it)) },
                         )
                     }
 
@@ -622,7 +635,7 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
             selected = currentScreen is Screen.Library,
             onClick = {
                 if (currentScreen !is Screen.Library) {
-                    navigator.replaceAll(Screen.Library)
+                    navigator.replaceAll(Screen.Library())
                 }
             },
             icon = {
