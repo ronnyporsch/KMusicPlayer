@@ -20,6 +20,13 @@ class CrossfadeAudioPlayer(
     private var crossfadeJob: Job? = null
 
     private var currentPlayer: AudioPlayer = playerA
+        set(value) {
+            field = value
+            _activePlayer.value = value
+        }
+    private val _activePlayer = MutableStateFlow(playerA)
+    /** The player the current song plays on, e.g. to show its video. */
+    val activePlayer: StateFlow<AudioPlayer> = _activePlayer.asStateFlow()
     private var nextPlayer: AudioPlayer = playerB
     private var nextPreparedUrl: String? = null
     @Volatile
@@ -132,6 +139,20 @@ class CrossfadeAudioPlayer(
         nextPreparedUrl = null
         currentPlayer.setVolume(1f)
         currentPlayer.play(url)
+        collectCurrentPlayerState()
+    }
+
+    override val supportsVideo: Boolean get() = playerA.supportsVideo && playerB.supportsVideo
+
+    /** Plays the video without crossfade or gapless transitions. */
+    override fun playVideo(url: String, startPositionMs: Long) {
+        crossfadeJob?.cancel()
+        isCrossfading = false
+        nextPlayer.stop()
+        nextPlayer.setVolume(1f)
+        nextPreparedUrl = null
+        currentPlayer.setVolume(1f)
+        currentPlayer.playVideo(url, startPositionMs)
         collectCurrentPlayerState()
     }
 

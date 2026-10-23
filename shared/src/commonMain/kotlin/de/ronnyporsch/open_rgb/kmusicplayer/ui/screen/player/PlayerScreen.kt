@@ -21,6 +21,15 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.HighQuality
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.STANDARD_VIDEO_QUALITIES
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +46,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.QueueTab
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDurationMs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.AudioFormatText
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.VideoFormatText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -64,6 +74,9 @@ fun PlayerScreen(
     onAlbumClick: (albumId: String) -> Unit,
     onBack: () -> Unit,
     onQueueClick: (QueueTab) -> Unit,
+    /** Whether the video is shown fullscreen instead, see [VideoPlayerView]. */
+    isVideoFullscreen: Boolean = false,
+    onToggleVideoFullscreen: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val playback = state.playback
@@ -96,6 +109,13 @@ fun PlayerScreen(
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (state.isVideo) {
+                    VideoQualityButton(
+                        quality = state.videoQuality,
+                        heights = state.videoHeights,
+                        onSelect = { viewModel.onEvent(PlayerEvent.SetVideoQuality(it)) },
+                    )
+                }
                 QueueButtons(openTab = null, onClick = onQueueClick)
                 FavoriteButton(FavoriteKind.Song, song?.id)
             }
@@ -114,6 +134,26 @@ fun PlayerScreen(
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
             )
+        } else if (state.isVideo && song != null) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                // The fullscreen view shows the picture meanwhile; a player has only one
+                if (!isVideoFullscreen) {
+                    VideoPlayerView(
+                        player = viewModel.player,
+                        aspectRatio = state.videoAspectRatio,
+                        thumbnailUrl = coverArt.getUrl(song.coverArtId),
+                        isBuffering = playback.status == PlaybackStatus.Buffering,
+                        isFullscreen = false,
+                        onToggleFullscreen = onToggleVideoFullscreen,
+                        // It's in the controls below
+                        showFullscreenButton = false,
+                        modifier = Modifier.aspectRatio(state.videoAspectRatio ?: (16f / 9f)),
+                    )
+                }
+            }
         } else {
             Spacer(Modifier.weight(0.5f))
 
@@ -186,7 +226,15 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(playback.positionMs.formatDurationMs(), style = MaterialTheme.typography.bodySmall)
-                AudioFormatText(state.audioFormat)
+                if (state.isVideo) {
+                    // Video and audio are separate streams with their own codecs
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        state.videoFormat?.let { VideoFormatText(it) }
+                        state.audioFormat?.let { AudioFormatText(it) }
+                    }
+                } else {
+                    AudioFormatText(state.audioFormat)
+                }
                 Text(playback.durationMs.formatDurationMs(), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -263,7 +311,17 @@ fun PlayerScreen(
                 iconSize = toggleIconSize,
             )
 
-            if (state.lyrics is LyricsState.Loaded) {
+            if (state.isVideo) {
+                // In the lyrics' slot: YouTube videos have none
+                TooltipIconButton(
+                    onClick = onToggleVideoFullscreen,
+                    icon = Icons.Default.Fullscreen,
+                    contentDescription = "Fullscreen",
+                    tint = SpotifyLightGray,
+                    modifier = controlModifier,
+                    iconSize = toggleIconSize,
+                )
+            } else if (state.lyrics is LyricsState.Loaded) {
                 TooltipIconButton(
                     onClick = { viewModel.onEvent(PlayerEvent.ToggleLyrics) },
                     icon = LyricsIcons.Lyrics,
@@ -281,3 +339,43 @@ fun PlayerScreen(
         Spacer(Modifier.height(32.dp))
     }
 }
+
+/** Picks the highest resolution videos get streamed in, like YouTube's quality setting. */
+@Composable
+private fun VideoQualityButton(quality: Int, heights: List<Int>, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = heights.ifEmpty { STANDARD_VIDEO_QUALITIES }
+    // The video plays in the highest resolution up to the chosen one
+    val effective = options.filter { it <= quality }.maxOrNull() ?: options.minOrNull()
+    Box {
+        TooltipIconButton(
+            onClick = { expanded = true },
+            icon = Icons.Default.HighQuality,
+            contentDescription = "Video quality (${effective?.let { "${it}p" } ?: "${quality}p"})",
+            tint = MaterialTheme.colorScheme.onBackground,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            Text(
+                "Video quality",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            options.forEach { height ->
+                DropdownMenuItem(
+                    text = { Text(videoQualityLabel(height)) },
+                    leadingIcon = {
+                        if (height == effective) Icon(Icons.Default.Check, contentDescription = null, tint = SpotifyGreen)
+                        else Spacer(Modifier.size(24.dp))
+                    },
+                    onClick = {
+                        expanded = false
+                        if (height != effective) onSelect(height)
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun videoQualityLabel(height: Int) = if (height >= 2160) "${height}p 4K" else "${height}p"

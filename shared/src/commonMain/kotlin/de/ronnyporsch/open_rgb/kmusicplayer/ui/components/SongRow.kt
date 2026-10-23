@@ -71,6 +71,8 @@ fun SongRow(
     trailingContent: (@Composable () -> Unit)? = null,
     /** Codec and bitrate, shown left of the duration. */
     audioFormat: AudioStreamInfo? = null,
+    /** What the item is, e.g. "Song" or "Video", shown before the artist. */
+    typeLabel: String? = null,
     /** Shows a heart to mark the song as favorite (library songs only). */
     showFavorite: Boolean = false,
     /** Click while Ctrl (Cmd on macOS) is held, to add the song to or remove it from the selection. Desktop and web only. */
@@ -209,6 +211,14 @@ fun SongRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (typeLabel != null) {
+                        Text(
+                            text = if (showArtist || (showAlbum && song.album.isNotEmpty())) "$typeLabel \u2022 " else typeLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
                     if (showArtist) {
                         if (onArtistClick != null) {
                             ClickableArtistText(

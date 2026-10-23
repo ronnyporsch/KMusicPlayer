@@ -279,4 +279,4 @@ class AudioPlayerJvm : AudioPlayer {
     }
 }
 
-actual fun createAudioPlayer(): AudioPlayer = AudioPlayerJvm()
+actual fun createAudioPlayer(): AudioPlayer = JvmMediaPlayer()

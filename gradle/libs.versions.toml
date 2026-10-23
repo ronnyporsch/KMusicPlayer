@@ -23,6 +23,7 @@ dbus-java = "5.2.2"
 jflac = "1.5.2"
 jlayer = "1.0.1"
 mp3spi = "1.9.5.4"
+vlcj = "4.8.3"
 material3 = "1.11.0-alpha07"
 
 [libraries]
@@ -63,6 +64,7 @@ dbus-java-transport-unixsocket = { module = "com.github.hypfvieh:dbus-java-trans
 jflac = { module = "org.jflac:jflac-codec", version.ref = "jflac" }
 jlayer = { module = "javazoom:jlayer", version.ref = "jlayer" }
 mp3spi = { module = "com.googlecode.soundlibs:mp3spi", version.ref = "mp3spi" }
+vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 
 [plugins]

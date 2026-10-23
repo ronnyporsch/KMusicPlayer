@@ -203,7 +203,9 @@ class JellyfinApiService {
         return response.body()
     }
 
-    suspend fun searchYouTube(query: String): List<YouTubeSongDto> = get("KMusicPlayer/YouTube/Search", mapOf("query" to query))
+    /** [includeVideos] needs plugin 1.8.0.0, see [PluginInfoDto.videoAvailable]. */
+    suspend fun searchYouTube(query: String, includeVideos: Boolean): List<YouTubeSongDto> =
+        get("KMusicPlayer/YouTube/Search", mapOf("query" to query, "includeVideos" to includeVideos.takeIf { it }))
 
     suspend fun searchYouTubeArtists(query: String): List<YouTubeArtistSummaryDto> =
         get("KMusicPlayer/YouTube/Artists/Search", mapOf("query" to query))
@@ -279,6 +281,29 @@ class JellyfinApiService {
             parameters.append("ApiKey", s.accessToken)
         }.buildString()
     }
+
+    /** A YouTube video with picture and sound (MP4), in the highest resolution up to [maxHeight]. */
+    fun getYouTubeVideoUrl(videoId: String, maxHeight: Int): String {
+        val s = requireSession()
+        return URLBuilder("${s.serverUrl}/KMusicPlayer/YouTube/$videoId/Video").apply {
+            parameters.append("maxHeight", maxHeight.toString())
+            parameters.append("ApiKey", s.accessToken)
+        }.buildString()
+    }
+
+    /** Codecs and bitrates of the streams of [getYouTubeVideoUrl]; null if unknown or with plugins before 1.8.1.0. */
+    suspend fun getYouTubeVideoInfo(videoId: String, maxHeight: Int): VideoStreamInfoDto? {
+        val response = client.get("${baseUrl()}/KMusicPlayer/YouTube/$videoId/VideoInfo") {
+            authorize()
+            parameter("maxHeight", maxHeight)
+        }
+        if (response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.NotFound) return null
+        response.ensureSuccess()
+        return response.body()
+    }
+
+    /** Heights (e.g. 1080) the video is available in, highest first. */
+    suspend fun getYouTubeVideoHeights(videoId: String): List<Int> = get("KMusicPlayer/YouTube/$videoId/VideoHeights", emptyMap())
 
     private suspend inline fun <reified T> get(path: String, params: Map<String, Any?>): T {
         val response = client.get("${baseUrl()}/$path") {

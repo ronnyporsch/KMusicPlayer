@@ -95,6 +95,8 @@ kotlin {
             implementation(libs.jlayer)
             implementation(libs.mp3spi)
             implementation(libs.jflac)
+            // Video playback (YouTube videos) through an installed VLC
+            implementation(libs.vlcj)
             // MPRIS, so media keys and desktop media widgets on Linux can control playback
             implementation(libs.dbus.java.core)
             implementation(libs.dbus.java.transport.unixsocket)

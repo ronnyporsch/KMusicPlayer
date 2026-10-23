@@ -11,6 +11,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.mvi.MviStore
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.AudioPlayer
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.CrossfadeAudioPlayer
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
@@ -35,6 +38,9 @@ class PlayerViewModel(
     private val crossfadePlayer: CrossfadeAudioPlayer?
         get() = audioPlayer as? CrossfadeAudioPlayer
 
+    /** Plays the songs; shows the picture of videos, see [de.ronnyporsch.open_rgb.kmusicplayer.platform.VideoSurface]. */
+    val player: AudioPlayer get() = audioPlayer
+
     init {
         launch {
             audioPlayer.state.collectLatest { playerState ->
@@ -54,7 +60,8 @@ class PlayerViewModel(
                             },
                             positionMs = playerState.positionMs,
                             durationMs = playerState.durationMs,
-                        )
+                        ),
+                        videoAspectRatio = playerState.videoAspectRatio,
                     )
                 }
 
@@ -71,8 +78,9 @@ class PlayerViewModel(
                 val positionMs = playerState.positionMs
                 val remainingMs = durationMs - positionMs
 
-                if (durationMs > 0 && playback.currentSong != null && playerState.isPlaying) {
-                    val nextSong = getNextSong()
+                // Videos play on their own, the transitions are for songs
+                if (durationMs > 0 && playback.currentSong != null && playerState.isPlaying && !currentState.isVideo) {
+                    val nextSong = getNextSong()?.takeIf { !playsAsVideo(it) }
 
                     // Pre-buffer the next track
                     if (!hasPreparedNext && nextSong != null && crossfadePlayer != null) {
@@ -109,7 +117,10 @@ class PlayerViewModel(
                     && playback.currentSong != null
                 ) {
                     hasAutoAdvanced = true
-                    if (settings.gaplessEnabled && crossfadePlayer != null && getNextSong() != null) {
+                    val nextSong = getNextSong()
+                    if (settings.gaplessEnabled && crossfadePlayer != null && nextSong != null && hasPreparedNext
+                        && !currentState.isVideo && !playsAsVideo(nextSong)
+                    ) {
                         crossfadePlayer?.playNextGapless()
                         advanceToNextSong()
                     } else {
@@ -130,10 +141,22 @@ class PlayerViewModel(
                 .map { it.playback.currentSong }
                 .distinctUntilChanged { old, new -> old?.id == new?.id }
                 .collectLatest { song ->
-                    setState { copy(audioFormat = song?.audioFormat) }
-                    if (song != null && song.audioFormat == null) {
+                    setState { copy(audioFormat = song?.audioFormat, videoFormat = null) }
+                    // Videos have their own audio stream, see loadVideoFormat
+                    if (song != null && song.audioFormat == null && !playsAsVideo(song)) {
                         // Only informational, e.g. offline there is none
                         repository.getAudioFormat(song).getOrNull()?.let { setState { copy(audioFormat = it) } }
+                    }
+                }
+        }
+        launch {
+            state
+                .map { it.playback.currentSong }
+                .distinctUntilChanged { old, new -> old?.id == new?.id }
+                .collectLatest { song ->
+                    setState { copy(videoHeights = emptyList()) }
+                    if (song != null && playsAsVideo(song)) {
+                        repository.getVideoHeights(song).getOrNull()?.let { setState { copy(videoHeights = it) } }
                     }
                 }
         }
@@ -153,7 +176,10 @@ class PlayerViewModel(
         launch {
             settingsHolder.settings.collectLatest { settings ->
                 setState {
-                    copy(playback = playback.copy(crossfadeEnabled = settings.playback.crossfadeEnabled))
+                    copy(
+                        playback = playback.copy(crossfadeEnabled = settings.playback.crossfadeEnabled),
+                        videoQuality = settings.playback.videoQuality,
+                    )
                 }
             }
         }
@@ -188,6 +214,7 @@ class PlayerViewModel(
                 audioPlayer.seekTo(event.positionMs)
                 setState { copy(playback = playback.copy(positionMs = event.positionMs)) }
             }
+            is PlayerEvent.SetVideoQuality -> setVideoQuality(event.height)
         }
     }
 
@@ -382,12 +409,51 @@ class PlayerViewModel(
     /** The song after the current one may be a different one now; then the pre-buffered one is replaced. */
     private fun onUpcomingChanged() {
         if (!hasPreparedNext || hasCrossfadeStarted) return
-        val url = getNextSong()?.let { streamUrl(it) } ?: return
+        val url = getNextSong()?.takeIf { !playsAsVideo(it) }?.let { streamUrl(it) } ?: return
         crossfadePlayer?.prepareNext(url)
+    }
+
+    /** Videos play with picture where the player can show it, otherwise as songs. */
+    private fun playsAsVideo(song: Song) = song.isVideo && audioPlayer.supportsVideo
+
+    private fun videoUrl(song: Song): String? =
+        if (playsAsVideo(song)) repository.getVideoUrl(song, settingsHolder.settings.value.playback.videoQuality) else null
+
+    private fun setVideoQuality(height: Int) {
+        settingsHolder.update { copy(playback = playback.copy(videoQuality = height)) }
+        setState { copy(videoQuality = height) }
+        val song = currentState.playback.currentSong ?: return
+        if (!currentState.isVideo) return
+        // Continues where it was, in the new resolution
+        val url = videoUrl(song) ?: return
+        audioPlayer.playVideo(url, currentState.playback.positionMs)
+        loadVideoFormat(song)
+    }
+
+    private var videoFormatJob: Job? = null
+
+    /** Codecs and bitrates of the streams the current video plays with; only informational. */
+    private fun loadVideoFormat(song: Song) {
+        videoFormatJob?.cancel()
+        setState { copy(videoFormat = null, audioFormat = null) }
+        val quality = settingsHolder.settings.value.playback.videoQuality
+        videoFormatJob = viewModelScope.launch {
+            val format = repository.getVideoFormat(song, quality).getOrNull() ?: return@launch
+            if (currentState.playback.currentSong?.id == song.id && currentState.isVideo) {
+                setState { copy(videoFormat = format.video, audioFormat = format.audio) }
+            }
+        }
     }
 
     private fun playCurrent() {
         val song = currentState.playback.currentSong ?: return
+        val videoUrl = videoUrl(song)
+        setState { copy(isVideo = videoUrl != null) }
+        if (videoUrl != null) {
+            audioPlayer.playVideo(videoUrl)
+            loadVideoFormat(song)
+            return
+        }
         val url = streamUrl(song)
         if (url == null) {
             audioPlayer.stop()

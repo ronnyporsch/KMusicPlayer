@@ -1,48 +1,82 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.platform
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.browser.document
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.w3c.dom.HTMLAudioElement
+import org.w3c.dom.HTMLVideoElement
 
 class AudioPlayerJs : AudioPlayer {
 
     private val _state = MutableStateFlow(AudioPlayerState())
     override val state: StateFlow<AudioPlayerState> = _state.asStateFlow()
 
-    private val audio = (document.createElement("audio") as HTMLAudioElement)
+    // A video element plays audio-only streams just the same. Compose draws into a canvas, so the picture is an
+    // element behind it, placed where the PlatformVideoSurface is, which makes the canvas transparent there (so
+    // Compose can still draw controls on top)
+    private val media = (document.createElement("video") as HTMLVideoElement).apply {
+        style.apply {
+            position = "fixed"
+            display = "none"
+            setProperty("pointer-events", "none")
+            setProperty("object-fit", "contain")
+            background = "black"
+            zIndex = "-1"
+        }
+        setAttribute("playsinline", "")
+        // Browsers' own video overlays (e.g. Firefox's "Pop out this video") would show on top of the app
+        setAttribute("disablepictureinpicture", "")
+    }
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var positionJob: Job? = null
+    private var isVideo = false
 
     init {
-        audio.addEventListener("playing") {
+        media.addEventListener("playing") {
             updateState(isPlaying = true)
             startPositionTracking()
         }
-        audio.addEventListener("pause") {
+        media.addEventListener("pause") {
             updateState(isPlaying = false)
             positionJob?.cancel()
         }
-        audio.addEventListener("ended") {
+        media.addEventListener("ended") {
             _state.value = AudioPlayerState()
             positionJob?.cancel()
         }
-        audio.addEventListener("waiting") {
+        media.addEventListener("waiting") {
             _state.value = _state.value.copy(isBuffering = true)
         }
-        audio.addEventListener("error") {
+        media.addEventListener("error") {
             positionJob?.cancel()
-            _state.value = AudioPlayerState(error = describeMediaError(audio.error?.code?.toInt()))
+            _state.value = AudioPlayerState(error = describeMediaError(media.error?.code?.toInt()))
+        }
+        media.addEventListener("resize") {
+            _state.value = _state.value.copy(videoAspectRatio = videoAspectRatio())
         }
     }
+
+    private fun videoAspectRatio(): Float? =
+        if (isVideo && media.videoWidth > 0 && media.videoHeight > 0) media.videoWidth.toFloat() / media.videoHeight else null
 
     private fun updateState(isPlaying: Boolean) {
         _state.value = AudioPlayerState(
             isPlaying = isPlaying,
-            positionMs = (audio.currentTime * 1000).toLong(),
-            durationMs = if (audio.duration.isNaN()) 0L else (audio.duration * 1000).toLong(),
+            positionMs = (media.currentTime * 1000).toLong(),
+            durationMs = if (media.duration.isNaN()) 0L else (media.duration * 1000).toLong(),
+            videoAspectRatio = videoAspectRatio(),
         )
     }
 
@@ -63,33 +97,58 @@ class AudioPlayerJs : AudioPlayer {
         else -> "Could not load the audio stream"
     }
 
-    override fun play(url: String) {
+    override fun play(url: String) = load(url, video = false, startPositionMs = 0)
+
+    override val supportsVideo: Boolean = true
+
+    override fun playVideo(url: String, startPositionMs: Long) = load(url, video = true, startPositionMs = startPositionMs)
+
+    private fun load(url: String, video: Boolean, startPositionMs: Long) {
+        // Not before: ComposeViewport replaces the page's content when it starts
+        if (!media.isConnected) document.body?.appendChild(media)
+        isVideo = video
         _state.value = AudioPlayerState(isBuffering = true)
-        audio.src = url
-        audio.load()
-        audio.play()
+        // Media fragment: starts there without loading the beginning first
+        media.src = if (startPositionMs > 0) "$url#t=${startPositionMs / 1000.0}" else url
+        media.load()
+        media.play()
+    }
+
+    /** Shows the picture at these CSS pixel bounds of the page. */
+    internal fun showVideo(left: Float, top: Float, width: Float, height: Float) {
+        media.style.apply {
+            this.left = "${left}px"
+            this.top = "${top}px"
+            this.width = "${width}px"
+            this.height = "${height}px"
+            display = "block"
+        }
+    }
+
+    internal fun hideVideo() {
+        media.style.display = "none"
     }
 
     override fun pause() {
-        audio.pause()
+        media.pause()
     }
 
     override fun resume() {
-        audio.play()
+        media.play()
     }
 
     override fun seekTo(positionMs: Long) {
-        audio.currentTime = positionMs / 1000.0
-        updateState(isPlaying = !audio.paused)
+        media.currentTime = positionMs / 1000.0
+        updateState(isPlaying = !media.paused)
     }
 
     override fun setVolume(volume: Float) {
-        audio.volume = volume.toDouble().coerceIn(0.0, 1.0)
+        media.volume = volume.toDouble().coerceIn(0.0, 1.0)
     }
 
     override fun stop() {
-        audio.pause()
-        audio.currentTime = 0.0
+        media.pause()
+        media.currentTime = 0.0
         positionJob?.cancel()
         _state.value = AudioPlayerState()
     }
@@ -97,7 +156,28 @@ class AudioPlayerJs : AudioPlayer {
     override fun release() {
         stop()
         scope.cancel()
+        media.remove()
     }
 }
 
 actual fun createAudioPlayer(): AudioPlayer = AudioPlayerJs()
+
+@Composable
+internal actual fun PlatformVideoSurface(player: AudioPlayer, modifier: Modifier) {
+    val webPlayer = player as? AudioPlayerJs ?: return
+    // Compose pixels are device pixels, the element is placed in CSS pixels
+    val density = LocalDensity.current.density
+    val hasPicture = webPlayer.state.collectAsState().value.videoAspectRatio != null
+    DisposableEffect(webPlayer) {
+        onDispose { webPlayer.hideVideo() }
+    }
+    Box(
+        modifier
+            .onGloballyPositioned { coordinates ->
+                val bounds = coordinates.boundsInWindow()
+                webPlayer.showVideo(bounds.left / density, bounds.top / density, bounds.width / density, bounds.height / density)
+            }
+            // Lets the element behind the canvas show through, once there is a picture (until then e.g. a thumbnail)
+            .drawBehind { if (hasPicture) drawRect(Color.Black, blendMode = BlendMode.Clear) }
+    )
+}

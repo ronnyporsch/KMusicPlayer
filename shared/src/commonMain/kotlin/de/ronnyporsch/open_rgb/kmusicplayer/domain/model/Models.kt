@@ -56,6 +56,8 @@ data class Song(
     val bitRate: Int? = null,
     /** Display name such as "FLAC" or "Opus", see [codecDisplayName]. */
     val codec: String? = null,
+    /** A YouTube (music) video, which can be played with picture. */
+    val isVideo: Boolean = false,
 )
 
 /** What kind of item a favorite is; servers mark them through different endpoints. */
@@ -63,6 +65,12 @@ enum class FavoriteKind { Song, Album, Artist }
 
 /** [codec] is a display name such as "Opus" or "AAC", see [codecDisplayName]; [bitRate] is in kbps. */
 data class AudioStreamInfo(val codec: String?, val bitRate: Int?)
+
+/** Video stream of a video; [codec] is a display name such as "H.264", [bitRate] is in kbps. */
+data class VideoStreamInfo(val codec: String?, val bitRate: Int?, val width: Int?, val height: Int?, val frameRate: Int?)
+
+/** The streams a video plays with. */
+data class VideoFormat(val video: VideoStreamInfo, val audio: AudioStreamInfo)
 
 /** Codec and bitrate the song carries itself (library songs, from some song lists), or null. */
 val Song.audioFormat: AudioStreamInfo?

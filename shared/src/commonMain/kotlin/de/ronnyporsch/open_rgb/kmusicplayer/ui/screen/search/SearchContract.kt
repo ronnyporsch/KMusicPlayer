@@ -23,8 +23,8 @@ data class SearchState(
     val isYouTubeLoading: Boolean = false,
     val youTubeError: String? = null,
     val downloads: Map<String, DownloadStatus> = emptyMap(),
-    /** Keyed by song id; filled in after the search results arrive. */
-    val youTubeStreamInfo: Map<String, AudioStreamInfo> = emptyMap(),
+    /** Codec and bitrate of YouTube Music songs by id, of the downloaded file or of the stream once looked up. */
+    val youTubeFormats: Map<String, AudioStreamInfo> = emptyMap(),
 )
 
 sealed class SearchEvent {

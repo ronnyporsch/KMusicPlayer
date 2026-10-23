@@ -66,6 +66,9 @@ public class YouTubeSongDto
 
     /// <summary>Gets or sets the duration in seconds.</summary>
     public int Duration { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether this is a (music) video rather than a song with a still cover.</summary>
+    public bool IsVideo { get; set; }
 }
 
 /// <summary>A YouTube Music artist search result.</summary>
@@ -179,4 +182,7 @@ public class PluginInfoDto
     public string? DownloadDirectory { get; set; }
 
     public string? Warning { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether search includes videos and videos can be streamed with picture.</summary>
+    public bool VideoAvailable { get; set; }
 }

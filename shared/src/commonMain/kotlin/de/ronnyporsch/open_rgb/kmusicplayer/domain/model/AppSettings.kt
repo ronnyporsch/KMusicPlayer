@@ -12,7 +12,14 @@ data class PlaybackSettings(
     val gaplessEnabled: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,
+    /** Highest video resolution (height in pixels) to stream, e.g. 1080 for 1080p. */
+    val videoQuality: Int = DEFAULT_VIDEO_QUALITY,
 )
+
+const val DEFAULT_VIDEO_QUALITY = 1080
+
+/** Offered while the heights a video is available in aren't known yet. */
+val STANDARD_VIDEO_QUALITIES = listOf(2160, 1440, 1080, 720, 480, 360, 240, 144)
 
 enum class ServerType(val displayName: String) {
     Jellyfin("Jellyfin"),

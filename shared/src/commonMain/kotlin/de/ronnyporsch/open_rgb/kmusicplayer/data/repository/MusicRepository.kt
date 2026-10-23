@@ -56,6 +56,15 @@ interface MusicRepository {
     suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit>
     fun getStreamUrl(songId: String): String
 
+    /** URL of the song's video with sound in the highest resolution up to [maxHeight]; null if it has none. */
+    fun getVideoUrl(song: Song, maxHeight: Int): String? = null
+
+    /** Video and audio streams of [getVideoUrl] for these arguments; null if unknown. */
+    suspend fun getVideoFormat(song: Song, maxHeight: Int): Result<VideoFormat?> = Result.success(null)
+
+    /** Heights (e.g. 1080) the song's video is available in, highest first. */
+    suspend fun getVideoHeights(song: Song): Result<List<Int>> = Result.success(emptyList())
+
     /** URL of the song's original file, e.g. for downloading it. */
     fun getDownloadUrl(songId: String): String
     fun getCoverArtUrl(coverArtId: String, size: Int = 300): String

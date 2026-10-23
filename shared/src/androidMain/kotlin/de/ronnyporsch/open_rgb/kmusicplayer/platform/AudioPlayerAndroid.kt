@@ -3,6 +3,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.platform
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -11,6 +12,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.TimeUnit
 
 class AudioPlayerAndroid : AudioPlayer {
 
@@ -19,8 +21,10 @@ class AudioPlayerAndroid : AudioPlayer {
 
     private val player: ExoPlayer by lazy {
         val context = AppContextHolder.context
-        // Streams over OkHttp, so a self-signed server certificate can be accepted
-        val dataSourceFactory = DefaultDataSource.Factory(context, OkHttpDataSource.Factory(sharedOkHttpClient))
+        // Streams over OkHttp, so a self-signed server certificate can be accepted. The server only answers once it has
+        // downloaded a YouTube video, which may take longer than OkHttp's default timeout of 10 s
+        val httpClient = sharedOkHttpClient.newBuilder().readTimeout(2, TimeUnit.MINUTES).build()
+        val dataSourceFactory = DefaultDataSource.Factory(context, OkHttpDataSource.Factory(httpClient))
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build().also { exo ->
@@ -31,6 +35,13 @@ class AudioPlayerAndroid : AudioPlayer {
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         updateState()
+                    }
+
+                    override fun onVideoSizeChanged(videoSize: VideoSize) {
+                        val ratio = if (videoSize.width > 0 && videoSize.height > 0) {
+                            videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                        } else null
+                        _state.value = _state.value.copy(videoAspectRatio = ratio)
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
@@ -70,9 +81,22 @@ class AudioPlayerAndroid : AudioPlayer {
         }
     }
 
+    /** Shows its video on a surface, see [PlatformVideoSurface]. */
+    internal val exoPlayer: ExoPlayer get() = player
+
     override fun play(url: String) {
-        _state.value = _state.value.copy(error = null)
+        _state.value = _state.value.copy(error = null, videoAspectRatio = null)
         player.setMediaItem(MediaItem.fromUri(url))
+        player.prepare()
+        player.play()
+        startPositionTracking()
+    }
+
+    override val supportsVideo: Boolean = true
+
+    override fun playVideo(url: String, startPositionMs: Long) {
+        _state.value = _state.value.copy(error = null, videoAspectRatio = null)
+        player.setMediaItem(MediaItem.fromUri(url), startPositionMs)
         player.prepare()
         player.play()
         startPositionTracking()

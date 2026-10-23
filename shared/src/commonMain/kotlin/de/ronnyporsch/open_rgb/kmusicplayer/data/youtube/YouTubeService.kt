@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -33,6 +34,8 @@ data class YouTubeCapabilities(
     val available: Boolean = false,
     /** Whether tracks can be downloaded into the server's library. */
     val canDownload: Boolean = false,
+    /** Whether search finds videos too, which can be played with picture. */
+    val videos: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -77,13 +80,25 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** Codec and bitrate of the downloaded files of songs in the library ([downloads] says which), by song id. */
     val libraryFormats: StateFlow<Map<String, AudioStreamInfo>> = _libraryFormats.asStateFlow()
 
+    private val _streamFormats = MutableStateFlow<Map<String, AudioStreamInfo>>(emptyMap())
+    /** Codec and bitrate of the streams of songs the user asked for, see [lookUpStreamFormat], by song id. */
+    val streamFormats: StateFlow<Map<String, AudioStreamInfo>> = _streamFormats.asStateFlow()
+
+    /** [libraryFormats], else [streamFormats]. */
+    val knownFormats: Flow<Map<String, AudioStreamInfo>> = combine(_streamFormats, _libraryFormats) { stream, library -> stream + library }
+
     private fun capabilitiesFor(plugin: PluginInfoDto?): YouTubeCapabilities {
         val server = plugin?.takeIf { it.ytDlpAvailable }
-        return YouTubeCapabilities(available = server != null, canDownload = server?.canDownload == true)
+        return YouTubeCapabilities(
+            available = server != null,
+            canDownload = server?.canDownload == true,
+            videos = server?.videoAvailable == true,
+        )
     }
 
     suspend fun searchSongs(query: String): List<Song> =
-        connection.jellyfinApi.searchYouTube(query).map { it.toSong() }.also(::checkDownloaded)
+        connection.jellyfinApi.searchYouTube(query, includeVideos = currentCapabilities.videos).map { it.toSong() }
+            .also(::checkDownloaded)
 
     suspend fun searchArtists(query: String): List<Artist> = connection.jellyfinApi.searchYouTubeArtists(query).map {
         Artist(id = YOUTUBE_SONG_ID_PREFIX + it.id, name = it.name, coverArtId = it.thumbnailUrl)
@@ -143,10 +158,15 @@ class YouTubeService(private val connection: MusicServerConnection) {
         return connection.jellyfinApi.getDownloadedYouTubeAlbums(browseIds).mapTo(mutableSetOf()) { YOUTUBE_SONG_ID_PREFIX + it }
     }
 
-    /** Codec and bitrate of the stream a download of [song] would get, or null if unknown. */
-    suspend fun audioStreamInfo(song: Song): AudioStreamInfo? {
+    /**
+     * Codec and bitrate of the stream a download of [song] would get, or null if unknown; also recorded in
+     * [streamFormats]. Takes seconds (the server runs yt-dlp), so only on request.
+     */
+    suspend fun lookUpStreamFormat(song: Song): AudioStreamInfo? {
         val videoId = song.youTubeVideoId ?: return null
-        return connection.jellyfinApi.getYouTubeStreamInfo(videoId)?.let { AudioStreamInfo(it.codec, it.bitRate) }
+        return connection.jellyfinApi.getYouTubeStreamInfo(videoId)
+            ?.let { AudioStreamInfo(it.codec, it.bitRate) }
+            ?.also { _streamFormats.value += song.id to it }
     }
 
     /** Downloads [songs] into the server's library; [downloads] reports their progress. */
@@ -233,6 +253,7 @@ private fun YouTubeSongDto.toSong() = Song(
     albumId = prefixed(albumId),
     coverArtId = thumbnailUrl,
     duration = duration,
+    isVideo = isVideo,
 )
 
 private fun YouTubeAlbumSummaryDto.toAlbum(artist: Artist) = Album(
@@ -273,4 +294,5 @@ private fun Song.toDto() = YouTubeSongDto(
     albumId = albumId.youTubeId ?: albumId,
     thumbnailUrl = coverArtId,
     duration = duration,
+    isVideo = isVideo,
 )

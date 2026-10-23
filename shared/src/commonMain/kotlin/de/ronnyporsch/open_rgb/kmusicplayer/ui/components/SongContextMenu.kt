@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -78,6 +79,9 @@ val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }
 /** Adds songs to the player's queue, from the song context menu. */
 val LocalAddToQueue = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
 
+/** Looks up codec and bitrate of YouTube Music songs' streams, from the song context menu. */
+val LocalStreamFormatLookup = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
+
 fun Set<String>.toggled(songId: String): Set<String> = if (songId in this) this - songId else this + songId
 
 /** The songs a context menu on [song] acts on: the selection if [song] is part of it, otherwise only [song]. */
@@ -109,6 +113,7 @@ fun SongContextMenu(
     var dialogSongs by remember { mutableStateOf(emptyList<Song>()) }
     val playlists by (editor?.playlists ?: remember { MutableStateFlow(emptyList<Playlist>()) }).collectAsState()
     val favorites = LocalFavorites.current
+    val streamFormatLookup = LocalStreamFormatLookup.current
     val favoriteIds by (favorites?.ids ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
 
     LaunchedEffect(expanded) {
@@ -160,6 +165,16 @@ fun SongContextMenu(
                     onClick = {
                         editor?.refreshPlaylists()
                         showPlaylists = true
+                    },
+                )
+            }
+            if (streamFormatLookup != null && songs.any { it.isYouTube }) {
+                DropdownMenuItem(
+                    text = { Text("Show audio format") },
+                    leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null) },
+                    onClick = {
+                        streamFormatLookup(songs.filter { it.isYouTube })
+                        onDismiss()
                     },
                 )
             }

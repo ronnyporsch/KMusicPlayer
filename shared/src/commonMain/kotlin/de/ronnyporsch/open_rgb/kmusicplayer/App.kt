@@ -1,6 +1,12 @@
 package de.ronnyporsch.open_rgb.kmusicplayer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
+import de.ronnyporsch.open_rgb.kmusicplayer.platform.rememberSystemFullscreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player.VideoPlayerView
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player.FullscreenVideoControls
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,6 +55,8 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsScr
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalFavorites
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalAddToQueue
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalStreamFormatLookup
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.description
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragOverlay
@@ -58,6 +66,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -74,6 +85,7 @@ fun App() {
     val connection = session.connection
     val repository = connection.repository
     val youTube = remember { YouTubeService(connection) }
+    val youTubeCapabilities by youTube.capabilities.collectAsState(youTube.currentCapabilities)
     // With saved login info, start directly on the library while auto-login is still connecting in the background
     val loggedIn = remember { session.autoLoginStatus.value.let { it != AutoLoginStatus.None && it !is AutoLoginStatus.Rejected } }
     val navigator = remember { Navigator(if (loggedIn) Screen.Library else Screen.Login) }
@@ -90,6 +102,26 @@ fun App() {
             playerViewModel.onEvent(PlayerEvent.AddToQueue(songs))
             val what = songs.singleOrNull()?.let { "\"${it.title}\"" } ?: "${songs.size} songs"
             scope.launch { snackbarHostState.showSnackbar("Added $what to the queue", duration = SnackbarDuration.Short) }
+        }
+    }
+    val lookUpStreamFormat: (List<Song>) -> Unit = remember {
+        { songs ->
+            scope.launch {
+                // Each lookup runs yt-dlp on the server; the rows show the formats as they arrive
+                val formats = songs.map { song ->
+                    async { runCatching { youTube.lookUpStreamFormat(song) }.onFailure { if (it is CancellationException) throw it } }
+                }.awaitAll()
+                val single = songs.singleOrNull()
+                val message = when {
+                    single != null -> formats.single().fold(
+                        onSuccess = { format -> format?.description()?.let { "\"${single.title}\": $it" } ?: "No audio format known for \"${single.title}\"" },
+                        onFailure = { "Couldn't look up the audio format: ${it.message}" },
+                    )
+                    formats.any { it.isFailure } -> "Couldn't look up the audio format of ${formats.count { it.isFailure }} of ${songs.size} songs"
+                    else -> "Looked up the audio format of ${songs.size} songs"
+                }
+                snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+            }
         }
     }
     val libraryViewModel = remember {
@@ -185,6 +217,7 @@ fun App() {
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
             LocalAddToQueue provides addToQueue,
+            LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
         ) {
@@ -201,6 +234,43 @@ fun App() {
             state = rememberNavigationEventState(NavigationEventInfo.None),
             isBackEnabled = canGoBack,
             onBackCompleted = { navigator.pop() },
+        )
+
+        // The video of the current song, over the whole app (and screen)
+        var videoFullscreen by remember { mutableStateOf(false) }
+        // Entered by turning the phone sideways; turning it back leaves it again
+        var fullscreenByRotation by remember { mutableStateOf(false) }
+        val systemFullscreen = rememberSystemFullscreen(onExited = { videoFullscreen = false })
+        val setVideoFullscreen: (Boolean) -> Unit = { enabled ->
+            videoFullscreen = enabled
+            fullscreenByRotation = false
+            // Right away: browsers only allow fullscreen while handling the click
+            systemFullscreen.set(enabled, landscape = (playerState.videoAspectRatio ?: (16f / 9f)) >= 1f)
+        }
+        val showVideoFullscreen = videoFullscreen && playerState.isVideo && hasSong
+        LaunchedEffect(showVideoFullscreen) {
+            if (!showVideoFullscreen && videoFullscreen) setVideoFullscreen(false)
+        }
+        // Phones: a video on the player screen goes fullscreen in landscape orientation, like in YouTube's app
+        val windowSize = LocalWindowInfo.current.containerSize
+        val isLandscape = windowSize.width > windowSize.height
+        val videoOnPlayerScreen = currentScreen is Screen.Player && playerState.isVideo
+        LaunchedEffect(isLandscape, videoOnPlayerScreen) {
+            if (!isMobile) return@LaunchedEffect
+            if (isLandscape && videoOnPlayerScreen && !videoFullscreen) {
+                videoFullscreen = true
+                fullscreenByRotation = true
+                // Without locking the orientation, so turning the phone back works
+                systemFullscreen.set(true, landscape = false)
+            } else if (!isLandscape && fullscreenByRotation) {
+                setVideoFullscreen(false)
+            }
+        }
+        // Back leaves fullscreen first
+        NavigationBackHandler(
+            state = rememberNavigationEventState(NavigationEventInfo.None),
+            isBackEnabled = showVideoFullscreen,
+            onBackCompleted = { setVideoFullscreen(false) },
         )
 
         Scaffold(
@@ -427,6 +497,8 @@ fun App() {
                     is Screen.Player -> {
                         PlayerScreen(
                             viewModel = playerViewModel,
+                            isVideoFullscreen = showVideoFullscreen,
+                            onToggleVideoFullscreen = { setVideoFullscreen(!videoFullscreen) },
                             onArtistClick = { name ->
                                 navigator.push(Screen.ArtistAlbums(playerState.playback.currentSong?.youTubeArtistId(name), name))
                             },
@@ -464,6 +536,29 @@ fun App() {
             }
         }
         songDragAndDrop?.let { SongDragOverlay(it) }
+        if (showVideoFullscreen) {
+            val focusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            VideoPlayerView(
+                player = playerViewModel.player,
+                aspectRatio = playerState.videoAspectRatio,
+                thumbnailUrl = coverArtUrlProvider.getUrl(playerState.playback.currentSong?.coverArtId),
+                isBuffering = playerState.playback.status == PlaybackStatus.Buffering,
+                isFullscreen = true,
+                onToggleFullscreen = { setVideoFullscreen(false) },
+                controls = { FullscreenVideoControls(playerViewModel) },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRequester(focusRequester)
+                    .focusable()
+                    .onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                            setVideoFullscreen(false)
+                            true
+                        } else false
+                    },
+            )
+        }
         }
         }
     }

@@ -182,10 +182,16 @@ fun SearchScreen(
                             )
                         }
                     }
+                    if (state.youTubeArtists.isNotEmpty()) {
+                        item { SearchSubheader("Artists") }
+                    }
                     items(state.youTubeArtists, key = { "yt-artist-${it.id}" }) { artist ->
                         SearchArtistRow(artist, subtitle = "Artist \u2022 YouTube Music") {
                             onResultClick(SearchEvent.ArtistClicked(artist))
                         }
+                    }
+                    if (state.youTubeSongs.isNotEmpty()) {
+                        item { SearchSubheader(if (state.youTubeSongs.any { it.isVideo }) "Songs & videos" else "Songs") }
                     }
                     itemsIndexed(state.youTubeSongs, key = { _, song -> "yt-${song.id}" }) { index, song ->
                         val download = state.downloads[song.id]
@@ -200,7 +206,8 @@ fun SearchScreen(
                                 isSelected = song.id in state.selectedSongIds,
                                 isPlaying = currentSongId == song.id,
                                 showAlbum = true,
-                                audioFormat = state.youTubeStreamInfo[song.id],
+                                audioFormat = state.youTubeFormats[song.id],
+                                typeLabel = if (song.isVideo) "Video" else "Song",
                                 trailingContent = if (state.youTubeDownloadAvailable) {
                                     { YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) } }
                                 } else null,
@@ -220,6 +227,16 @@ fun SearchScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SearchSubheader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
 }
 
 @Composable

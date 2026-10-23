@@ -189,6 +189,30 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
             return jellyfinApi.getYouTubeAudioUrl(videoId, mp3 = "opus" !in getPlatform().audioContainers)
         }
 
+        override fun getVideoUrl(song: Song, maxHeight: Int): String? {
+            val videoId = song.youTubeVideoId?.takeIf { song.isVideo && plugin.value?.videoAvailable == true } ?: return null
+            return jellyfinApi.getYouTubeVideoUrl(videoId, maxHeight)
+        }
+
+        override suspend fun getVideoFormat(song: Song, maxHeight: Int): Result<VideoFormat?> {
+            val videoId = song.youTubeVideoId?.takeIf { song.isVideo && plugin.value?.videoAvailable == true }
+                ?: return Result.success(null)
+            return runCatching {
+                jellyfinApi.getYouTubeVideoInfo(videoId, maxHeight)?.let {
+                    VideoFormat(
+                        VideoStreamInfo(it.videoCodec, it.videoBitRate, it.width, it.height, it.frameRate),
+                        AudioStreamInfo(it.audioCodec, it.audioBitRate),
+                    )
+                }
+            }
+        }
+
+        override suspend fun getVideoHeights(song: Song): Result<List<Int>> {
+            val videoId = song.youTubeVideoId?.takeIf { song.isVideo && plugin.value?.videoAvailable == true }
+                ?: return Result.success(emptyList())
+            return runCatching { jellyfinApi.getYouTubeVideoHeights(videoId) }
+        }
+
         override fun getDownloadUrl(songId: String): String {
             val videoId = songId.takeIf { it.startsWith(YOUTUBE_SONG_ID_PREFIX) }?.removePrefix(YOUTUBE_SONG_ID_PREFIX)
                 ?: return active.getDownloadUrl(songId)

@@ -54,12 +54,13 @@ public class KMusicPlayerController : ControllerBase
             CanDownload = MayDownload(),
             DownloadDirectory = _downloads.GetDownloadDirectory(),
             Warning = _ytDlp.CookiesWarning,
+            VideoAvailable = true,
         };
     }
 
-    /// <summary>Searches YouTube Music for songs.</summary>
+    /// <summary>Searches YouTube Music for songs, with <paramref name="includeVideos"/> also for (music) videos.</summary>
     [HttpGet("YouTube/Search")]
-    public async Task<ActionResult<List<YouTubeSongDto>>> Search([FromQuery] string query, CancellationToken cancellationToken)
+    public async Task<ActionResult<List<YouTubeSongDto>>> Search([FromQuery] string query, [FromQuery] bool includeVideos, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -68,7 +69,9 @@ public class KMusicPlayerController : ControllerBase
 
         try
         {
-            return await _youTubeMusic.SearchSongsAsync(query, cancellationToken).ConfigureAwait(false);
+            return includeVideos
+                ? await _youTubeMusic.SearchSongsAndVideosAsync(query, cancellationToken).ConfigureAwait(false)
+                : await _youTubeMusic.SearchSongsAsync(query, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException e)
         {
@@ -235,6 +238,80 @@ public class KMusicPlayerController : ControllerBase
         {
             // The client skipped the track before it was ready
             return new EmptyResult();
+        }
+    }
+
+    /// <summary>
+    /// A YouTube video with picture and sound (MP4) in the highest resolution up to <paramref name="maxHeight"/>
+    /// (default 1080), see <see cref="GetVideoHeights"/>.
+    /// </summary>
+    [HttpGet("YouTube/{videoId}/Video")]
+    public async Task<ActionResult> GetVideo([FromRoute] string videoId, [FromQuery] int? maxHeight, CancellationToken cancellationToken)
+    {
+        if (!YtDlpService.IsValidVideoId(videoId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var path = await _ytDlp.GetVideoFileAsync(videoId, maxHeight ?? 1080, cancellationToken).ConfigureAwait(false);
+            return PhysicalFile(path, Path.GetExtension(path) == ".webm" ? "video/webm" : "video/mp4", enableRangeProcessing: true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return new EmptyResult();
+        }
+        catch (IOException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>Codecs and bitrates of the video and audio streams <see cref="GetVideo"/> serves for these arguments.</summary>
+    [HttpGet("YouTube/{videoId}/VideoInfo")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<ActionResult<VideoStreamInfo>> GetVideoInfo([FromRoute] string videoId, [FromQuery] int? maxHeight, CancellationToken cancellationToken)
+    {
+        if (!YtDlpService.IsValidVideoId(videoId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var info = await _ytDlp.GetVideoStreamInfoAsync(videoId, maxHeight ?? 1080, cancellationToken).ConfigureAwait(false);
+            return info != null ? info : NoContent();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return NoContent();
+        }
+        catch (IOException e)
+        {
+            // Only informational
+            _logger.LogWarning("No video info for {VideoId}: {Message}", videoId, e.Message);
+            return NoContent();
+        }
+    }
+
+    /// <summary>The video heights (e.g. 1080) a YouTube video is available in, highest first.</summary>
+    [HttpGet("YouTube/{videoId}/VideoHeights")]
+    public async Task<ActionResult<IReadOnlyList<int>>> GetVideoHeights([FromRoute] string videoId, CancellationToken cancellationToken)
+    {
+        if (!YtDlpService.IsValidVideoId(videoId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            return Ok(await _ytDlp.GetVideoHeightsAsync(videoId, cancellationToken).ConfigureAwait(false));
+        }
+        catch (IOException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
         }
     }
 

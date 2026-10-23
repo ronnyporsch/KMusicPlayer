@@ -10,11 +10,8 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.toggled
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
 class SearchViewModel(
     private val repository: MusicRepository,
@@ -37,6 +34,9 @@ class SearchViewModel(
         }
         viewModelScope.launch {
             youTube.downloads.collect { setState { copy(downloads = it) } }
+        }
+        viewModelScope.launch {
+            youTube.knownFormats.collect { setState { copy(youTubeFormats = it) } }
         }
     }
 
@@ -129,7 +129,6 @@ class SearchViewModel(
                         youTubeError = null,
                     )
                 }
-                loadYouTubeStreamInfo(songs)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -140,27 +139,6 @@ class SearchViewModel(
                         isYouTubeLoading = false,
                         youTubeError = e.message ?: "YouTube Music search failed",
                     )
-                }
-            }
-        }
-    }
-
-    /** The search API doesn't report codecs/bitrates, so look them up per song and fill them in as they arrive. */
-    private suspend fun loadYouTubeStreamInfo(songs: List<Song>) {
-        // Each lookup runs yt-dlp on the server and takes seconds, so don't flood it
-        val permits = Semaphore(3)
-        coroutineScope {
-            for (song in songs) {
-                launch {
-                    val info = runCatching { permits.withPermit { youTube.audioStreamInfo(song) } }
-                        .onFailure { if (it is CancellationException) throw it }
-                        .getOrNull() ?: return@launch
-                    setState {
-                        copy(
-                            youTubeStreamInfo = youTubeStreamInfo + (song.id to info),
-                            youTubeSongs = youTubeSongs.map { if (it.id == song.id) it.copy(bitRate = info.bitRate) else it },
-                        )
-                    }
                 }
             }
         }

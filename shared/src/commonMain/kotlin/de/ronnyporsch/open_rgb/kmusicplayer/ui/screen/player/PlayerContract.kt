@@ -1,9 +1,11 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.DEFAULT_VIDEO_QUALITY
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Lyrics
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackState
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.VideoStreamInfo
 
 data class PlayerState(
     val playback: PlaybackState = PlaybackState(),
@@ -14,6 +16,16 @@ data class PlayerState(
     val audioFormat: AudioStreamInfo? = null,
     /** Most recent first, including the current song. */
     val recentlyPlayed: List<Song> = emptyList(),
+    /** Whether the current song plays as a video with picture, see [de.ronnyporsch.open_rgb.kmusicplayer.platform.VideoSurface]. */
+    val isVideo: Boolean = false,
+    /** Width / height of the video's picture, once known. */
+    val videoAspectRatio: Float? = null,
+    /** Highest resolution (height) videos get streamed in. */
+    val videoQuality: Int = DEFAULT_VIDEO_QUALITY,
+    /** Video stream of the current video, once known; its audio stream is in [audioFormat]. */
+    val videoFormat: VideoStreamInfo? = null,
+    /** Heights the current video is available in, highest first; empty until known. */
+    val videoHeights: List<Int> = emptyList(),
 )
 
 sealed interface LyricsState {
@@ -49,6 +61,8 @@ sealed class PlayerEvent {
     /** Plays [song] now without replacing the queue, e.g. from the recently played songs. */
     data class PlayNow(val song: Song) : PlayerEvent()
     data class SeekTo(val positionMs: Long) : PlayerEvent()
+    /** Streams videos in the highest resolution up to this height from now on, the current one too. */
+    data class SetVideoQuality(val height: Int) : PlayerEvent()
 }
 
 sealed class PlayerEffect {

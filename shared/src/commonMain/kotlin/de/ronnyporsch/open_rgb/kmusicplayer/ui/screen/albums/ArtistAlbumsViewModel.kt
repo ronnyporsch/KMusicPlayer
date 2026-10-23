@@ -72,7 +72,7 @@ class ArtistAlbumsViewModel(
             youTube.downloads.collect { setState { copy(downloads = it) } }
         }
         viewModelScope.launch {
-            youTube.libraryFormats.collect { setState { copy(libraryFormats = it) } }
+            youTube.knownFormats.collect { setState { copy(libraryFormats = it) } }
         }
         launch {
             runCatching { youTube.getArtist(id) }

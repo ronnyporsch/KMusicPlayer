@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,9 @@ namespace Jellyfin.Plugin.KMusicPlayer.Services;
 
 /// <summary>Codec display name (e.g. "Opus") and bitrate in kbps of the audio stream that gets downloaded.</summary>
 public record AudioStreamInfo(string? Codec, int? BitRate);
+
+/// <summary>Codecs (display names, e.g. "H.264" and "AAC") and bitrates in kbps of the streams of a video.</summary>
+public record VideoStreamInfo(string? VideoCodec, int? VideoBitRate, int? Width, int? Height, int? FrameRate, string? AudioCodec, int? AudioBitRate);
 
 /// <summary>
 /// Runs yt-dlp: the configured one, else the standalone release shipped with the plugin (Linux x64/arm64), else the
@@ -34,6 +38,10 @@ public partial class YtDlpService
     internal static readonly string[] BestAudio = ["-f", "bestaudio", "-S", "quality,channels,acodec,abr"];
 
     private static readonly TimeSpan PlaybackCacheLifetime = TimeSpan.FromHours(12);
+    // Videos take up much more space
+    private static readonly TimeSpan VideoCacheLifetime = TimeSpan.FromHours(2);
+    // Beyond this, the least recently played videos get deleted
+    private const long VideoCacheMaxBytes = 2L * 1024 * 1024 * 1024;
     private static readonly TimeSpan SelfUpdateInterval = TimeSpan.FromDays(1);
 
     private readonly ILogger<YtDlpService> _logger;
@@ -43,6 +51,8 @@ public partial class YtDlpService
     // Each lookup spawns a yt-dlp process; don't start one per search result at once
     private readonly SemaphoreSlim _streamInfoLookups = new(4, 4);
     private readonly ConcurrentDictionary<string, AudioStreamInfo> _streamInfoCache = new();
+    private readonly ConcurrentDictionary<string, IReadOnlyList<int>> _videoHeightsCache = new();
+    private readonly ConcurrentDictionary<string, VideoStreamInfo> _videoInfoCache = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _playbackLocks = new();
     private readonly object _cookiesCopyLock = new();
     private string? _lastCookiesKey;
@@ -224,16 +234,164 @@ public partial class YtDlpService
     /// Returns a cached audio file of <paramref name="videoId"/> for playback (in its original codec, or as MP3 for
     /// clients that can't decode Opus/AAC), downloading it first if necessary.
     /// </summary>
-    public async Task<string> GetPlaybackFileAsync(string videoId, bool mp3, CancellationToken cancellationToken)
+    public Task<string> GetPlaybackFileAsync(string videoId, bool mp3, CancellationToken cancellationToken)
     {
         RequireValidId(videoId);
-        var key = videoId + (mp3 ? ".mp3" : string.Empty);
+        return GetCachedFileAsync(
+            videoId + (mp3 ? ".mp3" : string.Empty),
+            "audio",
+            dir => DownloadAudioAsync(videoId, dir, mp3 ? "mp3" : null, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns a cached MP4 of <paramref name="videoId"/> with picture and sound for playback, in the highest resolution
+    /// up to <paramref name="maxHeight"/> (H.264/AAC where available, which every player decodes), downloading it first
+    /// if necessary.
+    /// </summary>
+    public Task<string> GetVideoFileAsync(string videoId, int maxHeight, CancellationToken cancellationToken)
+    {
+        RequireValidId(videoId);
+        maxHeight = Math.Clamp(maxHeight, 144, 4320);
+        return GetCachedFileAsync(
+            VideoCacheKey(videoId, maxHeight),
+            "video",
+            async dir =>
+            {
+                await RunAsync(
+                    [
+                        "--no-playlist", "--quiet", "--no-warnings", .. VideoFormat(maxHeight),
+                        // Remembers which streams got picked, see GetVideoStreamInfoAsync
+                        "--print-to-file", VideoInfoTemplate, Path.Combine(dir, VideoInfoFile),
+                        "--merge-output-format", "mp4",
+                        "-o", Path.Combine(dir, "video.%(ext)s"),
+                        YouTubeMusicClient.WatchUrl(videoId),
+                    ],
+                    cancellationToken).ConfigureAwait(false);
+                return Directory.EnumerateFiles(dir, "video.*").SingleOrDefault(file => !file.EndsWith(".part", StringComparison.Ordinal))
+                    ?? throw new IOException("yt-dlp did not produce a video file");
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Codecs and bitrates of the streams <see cref="GetVideoFileAsync"/> picks (or picked) for these arguments, or null
+    /// if unknown. Doesn't download the video.
+    /// </summary>
+    public async Task<VideoStreamInfo?> GetVideoStreamInfoAsync(string videoId, int maxHeight, CancellationToken cancellationToken)
+    {
+        RequireValidId(videoId);
+        maxHeight = Math.Clamp(maxHeight, 144, 4320);
+        InvalidateCachesIfCookiesChanged();
+        var key = VideoCacheKey(videoId, maxHeight);
+        var recorded = Path.Combine(_playbackCacheDir, key, VideoInfoFile);
+        if (File.Exists(recorded))
+        {
+            return ParseVideoInfo(await File.ReadAllTextAsync(recorded, cancellationToken).ConfigureAwait(false));
+        }
+
+        if (_videoInfoCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var output = await RunAsync(
+            ["--no-playlist", "--quiet", "--no-warnings", "--skip-download", .. VideoFormat(maxHeight), "--print", VideoInfoTemplate, YouTubeMusicClient.WatchUrl(videoId)],
+            cancellationToken).ConfigureAwait(false);
+        var info = ParseVideoInfo(output);
+        if (info != null)
+        {
+            _videoInfoCache[key] = info;
+        }
+
+        return info;
+    }
+
+    private static string VideoCacheKey(string videoId, int maxHeight) =>
+        videoId + ".video" + maxHeight.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>The highest resolution up to <paramref name="maxHeight"/>, preferring H.264/AAC (which every player decodes).</summary>
+    private static string[] VideoFormat(int maxHeight) =>
+        ["-f", "bv*+ba/b", "-S", $"res:{maxHeight.ToString(CultureInfo.InvariantCulture)},vcodec:h264,acodec:aac"];
+
+    private const string VideoInfoFile = "format.txt";
+    private const string VideoInfoTemplate = "%(vcodec)s|%(vbr)s|%(tbr)s|%(width)s|%(height)s|%(fps)s|%(acodec)s|%(abr)s";
+
+    private static VideoStreamInfo? ParseVideoInfo(string output)
+    {
+        var parts = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault()?.Split('|');
+        if (parts is not { Length: 8 })
+        {
+            return null;
+        }
+
+        static int? Number(string text) =>
+            double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && value > 0 ? (int)Math.Round(value) : null;
+        var audioBitRate = Number(parts[7]);
+        // Not all formats report the video bitrate; the total minus the audio is close
+        var videoBitRate = Number(parts[1]) ?? (Number(parts[2]) is { } total ? total - (audioBitRate ?? 0) : null);
+        return new VideoStreamInfo(
+            VideoCodecName(parts[0]),
+            videoBitRate > 0 ? videoBitRate : null,
+            Number(parts[3]),
+            Number(parts[4]),
+            Number(parts[5]),
+            CodecName(parts[6]),
+            audioBitRate);
+    }
+
+    /// <summary>Maps yt-dlp video codec ids (e.g. <c>avc1.640028</c>, <c>vp09.00.40.08</c>) to display names.</summary>
+    private static string? VideoCodecName(string vcodec) => vcodec switch
+    {
+        "none" or "NA" => null,
+        _ when vcodec.StartsWith("avc", StringComparison.Ordinal) || vcodec.StartsWith("h264", StringComparison.Ordinal) => "H.264",
+        _ when vcodec.StartsWith("hev", StringComparison.Ordinal) || vcodec.StartsWith("hvc", StringComparison.Ordinal) || vcodec.StartsWith("h265", StringComparison.Ordinal) => "H.265",
+        _ when vcodec.StartsWith("vp09", StringComparison.Ordinal) || vcodec == "vp9" => "VP9",
+        _ when vcodec.StartsWith("av01", StringComparison.Ordinal) => "AV1",
+        _ when vcodec.StartsWith("vp8", StringComparison.Ordinal) => "VP8",
+        _ => vcodec.Split('.')[0].ToUpperInvariant(),
+    };
+
+    /// <summary>Video heights (e.g. 1080) <paramref name="videoId"/> is available in, highest first.</summary>
+    public async Task<IReadOnlyList<int>> GetVideoHeightsAsync(string videoId, CancellationToken cancellationToken)
+    {
+        RequireValidId(videoId);
+        InvalidateCachesIfCookiesChanged();
+        if (_videoHeightsCache.TryGetValue(videoId, out var cached))
+        {
+            return cached;
+        }
+
+        var output = await RunAsync(
+            ["--no-playlist", "--quiet", "--no-warnings", "--skip-download", "--print", "%(formats)j", YouTubeMusicClient.WatchUrl(videoId)],
+            cancellationToken).ConfigureAwait(false);
+        var formats = JsonNode.Parse(output.Trim()) as JsonArray ?? [];
+        var heights = formats
+            .Where(format => format?["vcodec"]?.GetValue<string>() is { } vcodec && vcodec != "none"
+                // Storyboards (thumbnail sheets for seeking) have a height too
+                && format["protocol"]?.GetValue<string>() != "mhtml")
+            .Select(format => format?["height"] is JsonValue height && height.TryGetValue<int>(out var value) ? value : 0)
+            .Where(height => height > 0)
+            .Distinct()
+            .OrderDescending()
+            .ToList();
+        _videoHeightsCache[videoId] = heights;
+        return heights;
+    }
+
+    /// <summary>
+    /// Returns the file named <paramref name="name"/>.* that <paramref name="download"/> put into the playback cache folder
+    /// <paramref name="key"/>, running it first if there is none.
+    /// </summary>
+    private async Task<string> GetCachedFileAsync(string key, string name, Func<string, Task<string>> download, CancellationToken cancellationToken)
+    {
         var semaphore = _playbackLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var dir = Path.Combine(_playbackCacheDir, key);
-            var existing = Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "audio.*").FirstOrDefault() : null;
+            var existing = Directory.Exists(dir) ? Directory.EnumerateFiles(dir, name + ".*").FirstOrDefault() : null;
             if (existing != null && !existing.EndsWith(".part", StringComparison.Ordinal))
             {
                 Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow);
@@ -249,7 +407,13 @@ public partial class YtDlpService
             Directory.CreateDirectory(dir);
             try
             {
-                return await DownloadAudioAsync(videoId, dir, mp3 ? "mp3" : null, cancellationToken).ConfigureAwait(false);
+                var file = await download(dir).ConfigureAwait(false);
+                if (key.Contains(".video", StringComparison.Ordinal))
+                {
+                    LimitVideoCacheSize(keep: dir);
+                }
+
+                return file;
             }
             catch
             {
@@ -423,6 +587,8 @@ public partial class YtDlpService
             // Signed in, other (e.g. Premium) streams may be available
             _lastCookiesKey = key;
             _streamInfoCache.Clear();
+            _videoHeightsCache.Clear();
+            _videoInfoCache.Clear();
         }
     }
 
@@ -460,7 +626,8 @@ public partial class YtDlpService
         {
             try
             {
-                if (DateTime.UtcNow - Directory.GetLastWriteTimeUtc(dir) > PlaybackCacheLifetime)
+                var lifetime = Path.GetFileName(dir).Contains(".video", StringComparison.Ordinal) ? VideoCacheLifetime : PlaybackCacheLifetime;
+                if (DateTime.UtcNow - Directory.GetLastWriteTimeUtc(dir) > lifetime)
                 {
                     Directory.Delete(dir, true);
                 }
@@ -468,6 +635,51 @@ public partial class YtDlpService
             catch (IOException e)
             {
                 _logger.LogDebug(e, "Could not delete {Dir}", dir);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deletes the least recently played videos until all of them fit into <see cref="VideoCacheMaxBytes"/>, except
+    /// <paramref name="keep"/> (just downloaded) and ones still downloading.
+    /// </summary>
+    private void LimitVideoCacheSize(string keep)
+    {
+        var videos = Directory.EnumerateDirectories(_playbackCacheDir)
+            .Where(dir => Path.GetFileName(dir).Contains(".video", StringComparison.Ordinal))
+            .Select(dir => new DirectoryInfo(dir))
+            .OrderByDescending(dir => dir.LastWriteTimeUtc)
+            .ToList();
+        long total = 0;
+        foreach (var dir in videos)
+        {
+            long size;
+            try
+            {
+                size = dir.EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length);
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+
+            total += size;
+            var downloading = _playbackLocks.TryGetValue(dir.Name, out var semaphore) && semaphore.CurrentCount == 0;
+            if (total <= VideoCacheMaxBytes || dir.FullName == Path.GetFullPath(keep) || downloading)
+            {
+                continue;
+            }
+
+            try
+            {
+                // Clients still streaming it keep their open file
+                dir.Delete(true);
+                total -= size;
+                _logger.LogDebug("Deleted cached video {Dir} ({Size} bytes) to stay below the cache limit", dir.Name, size);
+            }
+            catch (IOException e)
+            {
+                _logger.LogDebug(e, "Could not delete {Dir}", dir.FullName);
             }
         }
     }

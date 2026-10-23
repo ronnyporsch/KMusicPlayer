@@ -114,6 +114,8 @@ data class PluginInfoDto(
     @SerialName("CanDownload") val canDownload: Boolean = false,
     @SerialName("DownloadDirectory") val downloadDirectory: String? = null,
     @SerialName("Warning") val warning: String? = null,
+    /** Whether search includes videos and videos can be streamed with picture (plugin 1.8.0.0 and later). */
+    @SerialName("VideoAvailable") val videoAvailable: Boolean = false,
 )
 
 @Serializable
@@ -135,6 +137,8 @@ data class YouTubeSongDto(
     @SerialName("ThumbnailUrl") val thumbnailUrl: String? = null,
     /** In seconds. */
     @SerialName("Duration") val duration: Int = 0,
+    /** A (music) video rather than a song with a still cover. */
+    @SerialName("IsVideo") val isVideo: Boolean = false,
 )
 
 @Serializable
@@ -198,6 +202,17 @@ data class DownloadedTrackDto(
     @SerialName("VideoId") val videoId: String,
     @SerialName("Codec") val codec: String? = null,
     @SerialName("BitRate") val bitRate: Int? = null,
+)
+
+@Serializable
+data class VideoStreamInfoDto(
+    @SerialName("VideoCodec") val videoCodec: String? = null,
+    @SerialName("VideoBitRate") val videoBitRate: Int? = null,
+    @SerialName("Width") val width: Int? = null,
+    @SerialName("Height") val height: Int? = null,
+    @SerialName("FrameRate") val frameRate: Int? = null,
+    @SerialName("AudioCodec") val audioCodec: String? = null,
+    @SerialName("AudioBitRate") val audioBitRate: Int? = null,
 )
 
 @Serializable

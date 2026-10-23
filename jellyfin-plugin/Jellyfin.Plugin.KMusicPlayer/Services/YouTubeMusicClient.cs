@@ -46,6 +46,8 @@ public partial class YouTubeMusicClient
     private const string ClientVersion = "1.20260101.01.00";
     // Restricts search results to the "Songs" shelf
     private const string SongsFilterParams = "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D";
+    // Restricts search results to the "Videos" shelf
+    private const string VideosFilterParams = "EgWKAQIQAWoKEAkQBRAKEAMQBA%3D%3D";
     // Restricts search results to the "Artists" shelf
     private const string ArtistsFilterParams = "EgWKAQIgAWoKEAkQBRAKEAMQBA%3D%3D";
     // Titles of the artist page shelves listing the artist's own releases (the client requests English)
@@ -74,7 +76,31 @@ public partial class YouTubeMusicClient
     {
         var items = await SearchAsync(query, SongsFilterParams, cancellationToken).ConfigureAwait(false);
         return items
-            .Select(ParseSong)
+            .Select(item => ParseSong(item))
+            .OfType<YouTubeSongDto>()
+            .DistinctBy(song => song.VideoId)
+            .ToList();
+    }
+
+    /// <summary>Searches songs and (music) videos, interleaved so the best matches of both come first.</summary>
+    public async Task<List<YouTubeSongDto>> SearchSongsAndVideosAsync(string query, CancellationToken cancellationToken)
+    {
+        var songs = SearchSongsAsync(query, cancellationToken);
+        var videos = SearchVideosAsync(query, cancellationToken);
+        var songList = await songs.ConfigureAwait(false);
+        var videoList = await videos.ConfigureAwait(false);
+        return Enumerable.Range(0, Math.Max(songList.Count, videoList.Count))
+            .SelectMany(i => new[] { songList.ElementAtOrDefault(i), videoList.ElementAtOrDefault(i) })
+            .OfType<YouTubeSongDto>()
+            .DistinctBy(song => song.VideoId)
+            .ToList();
+    }
+
+    public async Task<List<YouTubeSongDto>> SearchVideosAsync(string query, CancellationToken cancellationToken)
+    {
+        var items = await SearchAsync(query, VideosFilterParams, cancellationToken).ConfigureAwait(false);
+        return items
+            .Select(item => ParseSong(item, isVideo: true))
             .OfType<YouTubeSongDto>()
             .DistinctBy(song => song.VideoId)
             .ToList();
@@ -283,7 +309,8 @@ public partial class YouTubeMusicClient
         return JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
     }
 
-    private static YouTubeSongDto? ParseSong(JsonNode? item)
+    /// <summary><paramref name="isVideo"/> applies if the item doesn't tell whether it's a video.</summary>
+    private static YouTubeSongDto? ParseSong(JsonNode? item, bool isVideo = false)
     {
         var titleRun = FlexColumnRuns(item, 0).FirstOrDefault();
         var title = String(titleRun, "text");
@@ -317,7 +344,20 @@ public partial class YouTubeMusicClient
             AlbumId = BrowseId(albumRun) ?? string.Empty,
             ThumbnailUrl = Thumbnail(item),
             Duration = duration,
+            IsVideo = MusicVideoType(titleRun, item) is { } type ? type != "MUSIC_VIDEO_TYPE_ATV" : isVideo,
         };
+    }
+
+    /// <summary>
+    /// E.g. <c>MUSIC_VIDEO_TYPE_ATV</c> for songs (audio with a still cover), <c>MUSIC_VIDEO_TYPE_OMV</c> for official music
+    /// videos or <c>MUSIC_VIDEO_TYPE_UGC</c> for other videos; null if unknown.
+    /// </summary>
+    private static string? MusicVideoType(JsonNode? titleRun, JsonNode? item)
+    {
+        static string? Type(JsonNode? watchEndpoint) => String(
+            Path(watchEndpoint, "watchEndpointMusicSupportedConfigs", "watchEndpointMusicConfig"), "musicVideoType");
+        return Type(Path(titleRun, "navigationEndpoint", "watchEndpoint"))
+            ?? Type(Path(item, "overlay", "musicItemThumbnailOverlayRenderer", "content", "musicPlayButtonRenderer", "playNavigationEndpoint", "watchEndpoint"));
     }
 
     private static YouTubeAlbumSummaryDto? ParseAlbumSummary(JsonNode? item, string? defaultType)
