@@ -8,6 +8,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player.VideoPlayerView
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player.FullscreenVideoControls
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -58,6 +61,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalAddToQueue
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalStreamFormatLookup
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.description
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDragAndDrop
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalDownloadedSongIds
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragOverlay
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PlaylistEditor
@@ -211,6 +215,8 @@ fun App() {
         }
     }
 
+    val downloadedSongIds by connection.downloads.downloadedSongIds.collectAsState()
+
     KMusicPlayerTheme {
         CompositionLocalProvider(
             LocalCoverArtUrlProvider provides coverArtUrlProvider,
@@ -220,6 +226,7 @@ fun App() {
             LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
+            LocalDownloadedSongIds provides downloadedSongIds,
         ) {
         Box(Modifier.fillMaxSize()) {
         val currentScreen by navigator.currentScreen.collectAsState()
@@ -271,6 +278,19 @@ fun App() {
             state = rememberNavigationEventState(NavigationEventInfo.None),
             isBackEnabled = showVideoFullscreen,
             onBackCompleted = { setVideoFullscreen(false) },
+        )
+        // Back while the keyboard is open (e.g. its hide button) only closes it. The keyboard should get it before
+        // the app, but a handler that got enabled after the keyboard opened (typing opens the search screen) wins
+        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        val focusManager = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        NavigationBackHandler(
+            state = rememberNavigationEventState(NavigationEventInfo.None),
+            isBackEnabled = imeVisible,
+            onBackCompleted = {
+                keyboard?.hide()
+                focusManager.clearFocus()
+            },
         )
 
         Scaffold(

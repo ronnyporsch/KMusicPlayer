@@ -46,6 +46,10 @@ class PlaylistDownloads(
     /** The downloaded playlists of the current server, by playlist id. */
     val status: StateFlow<Map<String, PlaylistDownloadStatus>> = _status.asStateFlow()
 
+    private val _downloadedSongIds = MutableStateFlow<Set<String>>(emptySet())
+    /** The songs of the downloaded playlists of the current server whose files are on the device. */
+    val downloadedSongIds: StateFlow<Set<String>> = _downloadedSongIds.asStateFlow()
+
     init {
         if (files != null) scope.launch { publish() }
     }
@@ -152,8 +156,11 @@ class PlaylistDownloads(
     private suspend fun publish() {
         val files = files ?: return
         val server = serverKey()
-        _status.value = load()
-            .filter { it.server == server }
+        val entries = load().filter { it.server == server }
+        _downloadedSongIds.value = entries.flatMapTo(mutableSetOf()) { entry ->
+            entry.playlist.songs.mapNotNull { song -> song.id.takeIf { files.uriOf(it) != null } }
+        }
+        _status.value = entries
             .associate { entry ->
                 val songs = entry.playlist.songs.distinctBy { it.id }
                 entry.playlist.id to PlaylistDownloadStatus(

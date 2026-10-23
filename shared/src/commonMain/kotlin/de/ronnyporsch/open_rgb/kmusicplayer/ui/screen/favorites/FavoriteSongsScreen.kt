@@ -179,7 +179,7 @@ fun FavoriteSongsList(
                 }
             }
 
-            itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+            itemsIndexed(songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
                 SongRow(
                     song = song,
                     index = index,

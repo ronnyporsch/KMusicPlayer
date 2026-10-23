@@ -151,7 +151,7 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                itemsIndexed(playlist.songs, key = { _, song -> song.id }) { index, song ->
+                itemsIndexed(playlist.songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
                     SongRow(
                         song = song,
                         index = index,

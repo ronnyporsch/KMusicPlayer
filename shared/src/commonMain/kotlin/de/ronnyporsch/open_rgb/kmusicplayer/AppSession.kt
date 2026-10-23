@@ -42,7 +42,8 @@ class AppSession private constructor() {
     private val systemMediaControls = createSystemMediaControls(
         playback = playerViewModel.state.map { it.playback },
         onEvent = playerViewModel::onEvent,
-        coverArtUrl = { song -> song.coverArtId?.let { connection.repository.getCoverArtUrl(it, 512) } },
+        // Throws while not connected, e.g. when playing downloaded songs offline
+        coverArtUrl = { song -> song.coverArtId?.let { runCatching { connection.repository.getCoverArtUrl(it, 512) }.getOrNull() } },
     )
 
     init {

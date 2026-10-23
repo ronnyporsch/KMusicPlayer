@@ -181,7 +181,7 @@ fun AlbumDetailScreen(
                     }
                 }
 
-                itemsIndexed(album.songs, key = { _, song -> song.id }) { index, song ->
+                itemsIndexed(album.songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
                     Column {
                         SongRow(
                             song = song,

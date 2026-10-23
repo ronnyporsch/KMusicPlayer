@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,6 +49,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTube
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+
+/** Ids of the songs that are downloaded on this device; [SongRow] marks them. */
+val LocalDownloadedSongIds = compositionLocalOf<Set<String>> { emptySet() }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -211,6 +215,14 @@ fun SongRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (song.id in LocalDownloadedSongIds.current) {
+                        Icon(
+                            Icons.Default.DownloadForOffline,
+                            contentDescription = "Downloaded",
+                            tint = SpotifyGreen,
+                            modifier = Modifier.padding(end = 4.dp).size(14.dp),
+                        )
+                    }
                     if (typeLabel != null) {
                         Text(
                             text = if (showArtist || (showAlbum && song.album.isNotEmpty())) "$typeLabel \u2022 " else typeLabel,

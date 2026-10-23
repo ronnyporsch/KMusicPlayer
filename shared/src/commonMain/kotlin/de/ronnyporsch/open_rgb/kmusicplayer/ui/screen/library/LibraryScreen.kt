@@ -610,7 +610,7 @@ private fun ArtistDetailPane(
 
                         itemsIndexed(
                             songs,
-                            key = { _, song -> song.id },
+                            key = { index, song -> "${song.id}::$index" },
                             span = { _, _ -> GridItemSpan(maxLineSpan) },
                         ) { index, song ->
                             SongRow(

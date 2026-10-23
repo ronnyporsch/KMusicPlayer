@@ -130,7 +130,7 @@ fun SearchScreen(
                     item {
                         Text("Songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     }
-                    itemsIndexed(state.songs, key = { _, song -> "song-${song.id}" }) { index, song ->
+                    itemsIndexed(state.songs, key = { index, song -> "song-${song.id}::$index" }) { index, song ->
                         SongRow(
                             song = song,
                             onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
@@ -193,7 +193,7 @@ fun SearchScreen(
                     if (state.youTubeSongs.isNotEmpty()) {
                         item { SearchSubheader(if (state.youTubeSongs.any { it.isVideo }) "Songs & videos" else "Songs") }
                     }
-                    itemsIndexed(state.youTubeSongs, key = { _, song -> "yt-${song.id}" }) { index, song ->
+                    itemsIndexed(state.youTubeSongs, key = { index, song -> "yt-${song.id}::$index" }) { index, song ->
                         val download = state.downloads[song.id]
                         Column {
                             SongRow(
