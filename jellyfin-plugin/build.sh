@@ -1,11 +1,22 @@
 #!/usr/bin/env bash
 # Builds the plugin into dist/: the plugin zip plus a Jellyfin plugin repository manifest.
 # Usage: ./build.sh [base URL dist/ is served from, used in manifest.json]
+# The version comes from the latest plugin-v<major>.<minor>.<patch> git tag, with the number of commits since the tag
+# as fourth part (so builds between releases still get new versions Jellyfin installs), or from $VERSION. The
+# changelog is the tag's message (or $CHANGELOG), the target ABI the Jellyfin.Controller version the plugin builds on.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION=1.9.0.0
-TARGET_ABI=12.2.0.0
+TAG=$(git describe --tags --match 'plugin-v[0-9]*' --abbrev=0 2>/dev/null || true)
+if [ -z "${VERSION:-}" ]; then
+  if [ -z "$TAG" ]; then echo "No plugin-v<major>.<minor>.<patch> tag found, set VERSION" >&2; exit 1; fi
+  VERSION="${TAG#plugin-v}.$(git rev-list --count "$TAG..HEAD")"
+fi
+if [ -z "${CHANGELOG:-}" ] && [ -n "$TAG" ]; then
+  CHANGELOG=$(git tag -l --format='%(contents)' "$TAG" | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
+fi
+CSPROJ=Jellyfin.Plugin.KMusicPlayer/Jellyfin.Plugin.KMusicPlayer.csproj
+TARGET_ABI="$(sed -n 's/.*Include="Jellyfin.Controller" Version="\([0-9.]*\)".*/\1/p' "$CSPROJ").0"
 BASE_URL=${1:-http://localhost:8765}
 DOTNET=${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}
 
@@ -57,26 +68,26 @@ with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             add_executable(z, f"deno/deno_{arch}", deno.read("deno"))
 PY
 
-cat > dist/manifest.json <<JSON
-[
-  {
+python3 - dist/manifest.json "$VERSION" "$TARGET_ABI" "$BASE_URL/$ZIP" "$(md5sum "dist/$ZIP" | cut -d' ' -f1)" "${CHANGELOG:-}" <<'PY'
+import datetime, json, sys
+manifest_path, version, target_abi, source_url, checksum, changelog = sys.argv[1:]
+manifest = [{
     "guid": "38651385-45e3-4f8e-bc70-c45f5910a4a0",
     "name": "KMusicPlayer",
     "description": "Searches YouTube Music for KMusicPlayer clients and downloads the tracks they pick into the music library using yt-dlp.",
     "overview": "YouTube Music search and downloads for KMusicPlayer",
     "owner": "KMusicPlayer",
     "category": "General",
-    "versions": [
-      {
-        "version": "$VERSION",
-        "changelog": "YouTube Music search finds videos too; streams videos with picture in a chosen resolution, reporting their video and audio codecs and bitrates; keeps at most 2 GB of videos cached",
-        "targetAbi": "$TARGET_ABI",
-        "sourceUrl": "$BASE_URL/$ZIP",
-        "checksum": "$(md5sum "dist/$ZIP" | cut -d' ' -f1)",
-        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      }
-    ]
-  }
-]
-JSON
+    "versions": [{
+        "version": version,
+        "changelog": changelog.strip(),
+        "targetAbi": target_abi,
+        "sourceUrl": source_url,
+        "checksum": checksum,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }],
+}]
+with open(manifest_path, "w") as f:
+    json.dump(manifest, f, indent=2)
+PY
 echo "Built dist/$ZIP and dist/manifest.json (served from $BASE_URL)"

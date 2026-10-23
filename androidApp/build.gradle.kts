@@ -19,6 +19,8 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+val appVersion: String by rootProject.extra
+
 android {
     namespace = "de.ronnyporsch.open_rgb.kmusicplayer"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -27,8 +29,9 @@ android {
         applicationId = "de.ronnyporsch.open_rgb.kmusicplayer"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersion.substringBefore('-').split('.').map(String::toInt)
+            .let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+        versionName = appVersion
     }
     packaging {
         resources {

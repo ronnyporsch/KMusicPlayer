@@ -15,6 +15,8 @@ dependencies {
     implementation(libs.compose.uiToolingPreview)
 }
 
+val appVersion: String by rootProject.extra
+
 compose.desktop {
     application {
         mainClass = "de.ronnyporsch.open_rgb.kmusicplayer.MainKt"
@@ -22,7 +24,8 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "de.ronnyporsch.open_rgb.kmusicplayer"
-            packageVersion = "1.0.0"
+            // Installers only accept <major>.<minor>.<patch>
+            packageVersion = appVersion.substringBefore('-')
 
             linux { iconFile.set(project.file("icons/icon.png")) }
             windows { iconFile.set(project.file("icons/icon.ico")) }

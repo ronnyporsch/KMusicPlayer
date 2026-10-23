@@ -34,13 +34,33 @@ their SHA-256 checksums) into `.tools/` and bundles them; delete that folder to 
 
 This writes `dist/kmusicplayer_<version>.zip` and `dist/manifest.json`, a Jellyfin plugin repository manifest.
 
+The version comes from the latest `plugin-v<major>.<minor>.<patch>` git tag plus the number of commits since then
+(`plugin-v1.9.0` and 2 commits: 1.9.0.2), so every build after a new commit has a version Jellyfin installs over the
+previous one; set `VERSION` to override it. The changelog is the tag's message (or `CHANGELOG`).
+
+## Releasing
+
+Push an annotated tag, its message is the changelog shown in Jellyfin:
+
+```sh
+git tag -a plugin-v1.10.0 -m "What changed"
+git push origin plugin-v1.10.0
+```
+
+The [release workflow](../.github/workflows/jellyfin-plugin.yml) builds the plugin, attaches the zip to a GitHub
+release and adds the version to `manifest.json` on the `plugin-repository` branch.
+
 ## Installing
 
 Either
 
-- serve `dist/` over HTTP (e.g. `cd dist && python3 -m http.server 8765`), add `<URL>/manifest.json` as a repository
-  under *Dashboard → Plugins → Repositories*, install *KMusicPlayer* from the catalog and restart Jellyfin, or
-- unpack the zip into `<Jellyfin config dir>/plugins/KMusicPlayer_1.0.0.0/` and restart Jellyfin.
+- add `https://raw.githubusercontent.com/ronnyporsch/KMusicPlayer/plugin-repository/manifest.json` as a repository
+  under *Dashboard → Plugins → Repositories*, install *KMusicPlayer* from the catalog and restart Jellyfin (updates
+  then show up in the catalog too),
+- for a local build, serve `dist/` over HTTP (e.g. `cd dist && python3 -m http.server 8765`) and add
+  `<URL>/manifest.json` as repository instead, where the URL must be reachable from the Jellyfin server (pass it to
+  `build.sh`), or
+- unpack the zip into `<Jellyfin config dir>/plugins/KMusicPlayer_<version>/` and restart Jellyfin.
 
 ## Configuration
 

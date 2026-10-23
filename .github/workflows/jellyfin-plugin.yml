@@ -1,0 +1,51 @@
+# Releases the Jellyfin plugin when a plugin-v<major>.<minor>.<patch> tag is pushed: builds it, attaches the zip to a
+# GitHub release and adds the version to manifest.json on the plugin-repository branch, which Jellyfin servers use as
+# plugin repository: https://raw.githubusercontent.com/<owner>/<repo>/plugin-repository/manifest.json
+name: Jellyfin plugin release
+
+on:
+  push:
+    tags: ['plugin-v*']
+
+permissions:
+  contents: write
+
+concurrency: plugin-repository
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # checkout turns the pushed annotated tag into a lightweight one, losing the message used as changelog
+      - run: git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: jellyfin-plugin/build.sh "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" jellyfin-plugin/dist/*.zip \
+            --title "Jellyfin plugin ${GITHUB_REF_NAME#plugin-v}" --notes-from-tag --latest=false
+
+      - name: Add version to plugin repository
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git fetch origin plugin-repository; then
+            git worktree add repository origin/plugin-repository
+          else
+            git worktree add --orphan -b plugin-repository repository
+          fi
+          python3 .github/merge-plugin-manifest.py jellyfin-plugin/dist/manifest.json repository/manifest.json
+          git -C repository add manifest.json
+          git -C repository commit -m "KMusicPlayer plugin $GITHUB_REF_NAME"
+          git -C repository push origin HEAD:plugin-repository
