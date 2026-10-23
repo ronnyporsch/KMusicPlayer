@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.remote.RemoteControl
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.InvalidCredentialsException
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicServerConnection
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.PlayHistory
@@ -32,10 +33,19 @@ class AppSession private constructor() {
     val settingsHolder = SettingsHolder()
     val connection = MusicServerConnection(settingsHolder)
     private val audioPlayer = CrossfadeAudioPlayer(createAudioPlayer(), createAudioPlayer())
-    val playerViewModel = PlayerViewModel(audioPlayer, connection.repository, settingsHolder, PlayHistory { settingsHolder.settings.value.serverKey })
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    /** Playing on other devices of the user and letting them control this one. */
+    private val remoteControl = RemoteControl(connection, scope)
+    val playerViewModel = PlayerViewModel(
+        audioPlayer,
+        connection.repository,
+        settingsHolder,
+        PlayHistory { settingsHolder.settings.value.serverKey },
+        remoteControl,
+    )
     /** For the desktop window title, without the window needing the ViewModel classes. */
     val currentSong: Flow<Song?> = playerViewModel.state.map { it.playback.currentSong }.distinctUntilChanged()
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     /** Whether there was a saved login when the session started; then it connects in the background. */
     private val autoLogin = settingsHolder.settings.value.hasSavedConnection

@@ -157,11 +157,19 @@ private fun QueueList(
         }
         item(key = "upcomingHeader") { SectionHeader("Next up") }
         if (entries.isEmpty()) {
-            item(key = "upcomingEmpty") { EmptyText("Nothing comes next. Add songs with \"Add to queue\" in their menu.") }
+            item(key = "upcomingEmpty") {
+                val device = state.remoteDevice
+                EmptyText(
+                    if (device != null && !device.isKMusicPlayer) "${device.name} doesn't share what comes next."
+                    else "Nothing comes next. Add songs with \"Add to queue\" in their menu."
+                )
+            }
         }
         items(entries, key = { it.key }) { entry ->
             val isDragged = reorder.draggedKey == entry.key
-            val play: () -> Unit = { queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.PlayQueueIndex(it)) } }
+            val play: () -> Unit = {
+                if (state.canEditQueue) queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.PlayQueueIndex(it)) }
+            }
             SongRow(
                 song = entry.song,
                 onSongClick = { if (isMobile) play() else selectedKey = entry.key },
@@ -170,9 +178,11 @@ private fun QueueList(
                 onAlbumClick = onAlbumClick,
                 showAlbum = true,
                 isSelected = selectedKey == entry.key || isDragged,
-                onRemoveClick = { queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.RemoveFromQueue(it)) } },
+                onRemoveClick = if (!state.canEditQueue) null else {
+                    { queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.RemoveFromQueue(it)) } }
+                },
                 removeDescription = "Remove from queue",
-                trailingContent = {
+                trailingContent = (@Composable {
                     Icon(
                         Icons.Default.DragHandle,
                         contentDescription = "Drag to reorder",
@@ -190,7 +200,7 @@ private fun QueueList(
                                 }
                             },
                     )
-                },
+                }).takeIf { state.canEditQueue },
                 modifier = if (isDragged) {
                     Modifier
                         .zIndex(1f)

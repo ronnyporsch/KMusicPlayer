@@ -36,6 +36,9 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
     private val jellyfin = JellyfinMusicRepository(jellyfinApi)
     private var active: MusicRepository = subsonic
 
+    /** The Jellyfin library, also while connected to a Subsonic server (then it can't be used). */
+    val jellyfinLibrary: JellyfinMusicRepository get() = jellyfin
+
     private val _serverType = MutableStateFlow<ServerType?>(null)
     /** The type of the connected server, or null while not connected. */
     val serverType: StateFlow<ServerType?> = _serverType.asStateFlow()

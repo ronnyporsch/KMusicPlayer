@@ -115,10 +115,12 @@ fun PlayerScreen(
                         onSelect = { viewModel.onEvent(PlayerEvent.SetVideoQuality(it)) },
                     )
                 }
+                DevicesButton(state, viewModel::onEvent, tint = MaterialTheme.colorScheme.onBackground)
                 QueueButtons(openTab = null, onClick = onQueueClick)
                 FavoriteButton(FavoriteKind.Song, song?.id)
             }
         }
+        PlayingOnText(state)
 
         // Songs without lyrics show their cover; the lyrics come back for the next song that has some
         val lyricsShown = state.showLyrics && song != null &&

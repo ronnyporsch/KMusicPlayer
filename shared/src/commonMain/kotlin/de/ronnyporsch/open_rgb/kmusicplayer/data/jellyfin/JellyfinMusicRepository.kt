@@ -182,6 +182,13 @@ class JellyfinMusicRepository(
 
     override fun getCoverArtUrl(coverArtId: String, size: Int): String = api.getImageUrl(coverArtId, size)
 
+    /** The songs with these ids, in that order; ids of songs that don't exist (anymore) are left out. */
+    suspend fun getSongs(ids: List<String>): Result<List<Song>> = runCatching {
+        if (ids.isEmpty()) return@runCatching emptyList()
+        val byId = ids.distinct().chunked(100).flatMap { chunk -> songs("ids" to chunk.joinToString(",")) }.associateBy { it.id }
+        ids.mapNotNull { byId[it] }
+    }
+
     private suspend fun albums(vararg params: Pair<String, Any>): List<Album> =
         api.getItems(
             mapOf(
@@ -235,7 +242,7 @@ private fun BaseItemDto.toAlbum() = Album(
     duration = ticksToSeconds(),
 )
 
-private fun BaseItemDto.toSong() = Song(
+internal fun BaseItemDto.toSong() = Song(
     id = id,
     title = name,
     artist = artistItems.joinToString(", ") { it.name }.ifBlank { albumArtist.orEmpty() },

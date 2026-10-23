@@ -10,6 +10,8 @@ class JsPlatform : Platform {
         ?.let { (startIndex) -> userAgent.substring(startIndex).substringBefore(" ") }
         ?: "Unknown"
 
+    override val deviceName: String = userAgent.findAnyOf(browserList, ignoreCase = true)?.second ?: "Web browser"
+
     override val isMobile: Boolean = false
     override val audioContainers: List<String> = BROWSER_AUDIO_CONTAINERS
 }

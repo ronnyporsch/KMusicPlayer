@@ -98,6 +98,7 @@ enum class PlaybackStatus {
     Idle, Playing, Paused, Buffering
 }
 
+@Serializable
 data class PlaybackState(
     val status: PlaybackStatus = PlaybackStatus.Idle,
     val currentSong: Song? = null,

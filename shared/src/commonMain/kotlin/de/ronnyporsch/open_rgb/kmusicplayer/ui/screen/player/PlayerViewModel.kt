@@ -1,5 +1,8 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.remote.RemoteCommand
+import de.ronnyporsch.open_rgb.kmusicplayer.data.remote.RemoteControl
+import de.ronnyporsch.open_rgb.kmusicplayer.data.remote.RemoteDevice
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.PlayHistory
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackState
@@ -15,6 +18,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -25,12 +29,23 @@ class PlayerViewModel(
     private val repository: MusicRepository,
     private val settingsHolder: SettingsHolder,
     private val history: PlayHistory,
+    /** Null where there is no remote control, e.g. in tests. */
+    private val remote: RemoteControl? = null,
 ) : MviStore<PlayerState, PlayerEvent, PlayerEffect>(PlayerState()) {
 
     private var hasAutoAdvanced = false
     private var hasPreparedNext = false
     private var hasCrossfadeStarted = false
     private var lastError: String? = null
+
+    /** Session id of [PlayerState.remoteDevice]; while set, the local player is stopped. */
+    private var remoteSessionId: String? = null
+    private var remoteJob: Job? = null
+
+    /** Where to continue once the song that's starting is loaded, e.g. after moving playback here. */
+    private var pendingStart: PendingStart? = null
+
+    private class PendingStart(val positionMs: Long, val paused: Boolean)
 
     /** Song whose lyrics are in [PlayerState.lyrics], unless they failed to load. */
     private var lyricsSongId: String? = null
@@ -44,6 +59,15 @@ class PlayerViewModel(
     init {
         launch {
             audioPlayer.state.collectLatest { playerState ->
+                // The playback shown is the remote device's
+                if (remoteSessionId != null) return@collectLatest
+                pendingStart?.let { start ->
+                    if (playerState.durationMs > 0 && !playerState.isBuffering) {
+                        pendingStart = null
+                        if (start.positionMs > 0) audioPlayer.seekTo(start.positionMs)
+                        if (start.paused) audioPlayer.pause()
+                    }
+                }
                 if (playerState.error != null && playerState.error != lastError) {
                     emitEffect(PlayerEffect.PlaybackError(playerState.error))
                 }
@@ -155,7 +179,7 @@ class PlayerViewModel(
                 .distinctUntilChanged { old, new -> old?.id == new?.id }
                 .collectLatest { song ->
                     setState { copy(videoHeights = emptyList()) }
-                    if (song != null && playsAsVideo(song)) {
+                    if (song != null && remoteSessionId == null && playsAsVideo(song)) {
                         repository.getVideoHeights(song).getOrNull()?.let { setState { copy(videoHeights = it) } }
                     }
                 }
@@ -171,7 +195,8 @@ class PlayerViewModel(
             state
                 .map { it.playback.currentSong }
                 .distinctUntilChanged { old, new -> old?.id == new?.id }
-                .collect { song -> if (song != null) history.add(song) }
+                // Songs played on other devices are in their history
+                .collect { song -> if (song != null && remoteSessionId == null) history.add(song) }
         }
         launch {
             settingsHolder.settings.collectLatest { settings ->
@@ -185,7 +210,22 @@ class PlayerViewModel(
         }
     }
 
+    init {
+        remote?.let { remote ->
+            launch { remote.available.collect { setState { copy(remoteControlAvailable = it) } } }
+            launch { remote.devices.collect(::onDevicesChanged) }
+            launch { remote.commands.collect(::onRemoteCommand) }
+            launch {
+                state.map { it.playback }.distinctUntilChanged().collect { if (remoteSessionId == null) remote.report(it) }
+            }
+        }
+    }
+
     override fun onEvent(event: PlayerEvent) {
+        if (remoteSessionId != null && event.toRemoteCommand() != null) {
+            sendToRemote(event)
+            return
+        }
         when (event) {
             is PlayerEvent.PlaySongs -> playSongs(event.songs, event.startIndex, event.shuffle)
             is PlayerEvent.PlayPause -> togglePlayPause()
@@ -215,7 +255,190 @@ class PlayerViewModel(
                 setState { copy(playback = playback.copy(positionMs = event.positionMs)) }
             }
             is PlayerEvent.SetVideoQuality -> setVideoQuality(event.height)
+            is PlayerEvent.SelectDevice -> selectDevice(event.sessionId)
         }
+    }
+
+    // Remote control
+
+    private fun PlayerEvent.toRemoteCommand(): RemoteCommand? = when (this) {
+        is PlayerEvent.PlaySongs -> RemoteCommand.PlaySongs(songs, startIndex, shuffle)
+        PlayerEvent.PlayPause -> RemoteCommand.PlayPause
+        PlayerEvent.Play -> RemoteCommand.Play
+        PlayerEvent.Pause -> RemoteCommand.Pause
+        PlayerEvent.Next -> RemoteCommand.Next
+        PlayerEvent.Previous -> RemoteCommand.Previous
+        PlayerEvent.ToggleShuffle -> RemoteCommand.SetShuffle(!currentState.playback.shuffle)
+        PlayerEvent.ToggleRepeat -> RemoteCommand.SetRepeat(currentState.playback.repeatMode.next())
+        is PlayerEvent.AddToQueue -> RemoteCommand.AddToQueue(songs)
+        is PlayerEvent.MoveInQueue -> RemoteCommand.MoveInQueue(from, to)
+        is PlayerEvent.RemoveFromQueue -> RemoteCommand.RemoveFromQueue(index)
+        is PlayerEvent.PlayQueueIndex -> RemoteCommand.PlayQueueIndex(index)
+        is PlayerEvent.PlayNow -> RemoteCommand.PlayNow(song)
+        is PlayerEvent.SeekTo -> RemoteCommand.SeekTo(positionMs)
+        PlayerEvent.ToggleCrossfade, PlayerEvent.ToggleLyrics, PlayerEvent.ShowLyrics,
+        is PlayerEvent.SetVideoQuality, is PlayerEvent.SelectDevice -> null
+    }
+
+    private fun sendToRemote(event: PlayerEvent) {
+        val device = currentState.remoteDevice ?: return
+        val command = event.toRemoteCommand() ?: return
+        // Shown right away, the device reports back the same (or something newer)
+        when (command) {
+            is RemoteCommand.SeekTo -> setState { copy(playback = playback.copy(positionMs = command.positionMs)) }
+            is RemoteCommand.MoveInQueue -> if (device.isKMusicPlayer) moveInQueue(command.from, command.to)
+            else -> {}
+        }
+        sendToRemote(device, command)
+    }
+
+    private fun sendToRemote(device: RemoteDevice, command: RemoteCommand) {
+        val remote = remote ?: return
+        viewModelScope.launch {
+            remote.send(device, command).onFailure {
+                emitEffect(PlayerEffect.Message(it.message ?: "Couldn't reach ${device.name}"))
+            }
+        }
+    }
+
+    private fun onDevicesChanged(devices: List<RemoteDevice>) {
+        setState { copy(devices = devices) }
+        val sessionId = remoteSessionId ?: return
+        val device = devices.find { it.sessionId == sessionId }
+        if (device == null) {
+            val name = currentState.remoteDevice?.name
+            leaveRemoteDevice()
+            emitEffect(PlayerEffect.Message("${name ?: "The device"} isn't connected anymore"))
+        } else {
+            showRemotePlayback(device)
+        }
+    }
+
+    private fun showRemotePlayback(device: RemoteDevice) {
+        setState { copy(remoteDevice = device, playback = device.playbackNow().copy(crossfadeEnabled = playback.crossfadeEnabled)) }
+    }
+
+    private fun selectDevice(sessionId: String?) {
+        if (sessionId == remoteSessionId) return
+        val previous = currentState.remoteDevice
+        if (sessionId == null) {
+            // Continues here where the device is, and stops it there
+            val playback = currentState.playback
+            leaveRemoteDevice()
+            if (previous != null && playback.currentSong != null) {
+                load(playback, paused = playback.status == PlaybackStatus.Paused)
+                sendToRemote(previous, RemoteCommand.Stop)
+            }
+            return
+        }
+        val device = currentState.devices.find { it.sessionId == sessionId } ?: return
+        // What plays here (or on the previous device) continues there
+        val playback = currentState.playback
+        if (previous != null) {
+            leaveRemoteDevice()
+        } else {
+            audioPlayer.stop()
+            pendingStart = null
+        }
+        if (playback.currentSong != null) {
+            val load = RemoteCommand.Load(playback, paused = playback.status == PlaybackStatus.Paused)
+            viewModelScope.launch {
+                remote?.send(device, load)
+                    ?.onSuccess { if (previous != null) remote.send(previous, RemoteCommand.Stop) }
+                    ?.onFailure { emitEffect(PlayerEffect.Message(it.message ?: "Couldn't reach ${device.name}")) }
+            }
+        }
+        remote?.report(PlaybackState())
+        remoteSessionId = sessionId
+        setState { copy(isVideo = false, videoAspectRatio = null) }
+        showRemotePlayback(device)
+        remoteJob = viewModelScope.launch {
+            launch { remote?.follow(device) }
+            // Moves the position on between the device's reports
+            while (true) {
+                delay(500)
+                currentState.devices.find { it.sessionId == sessionId }?.let(::showRemotePlayback)
+            }
+        }
+    }
+
+    /** Back to this device's player, with nothing playing. */
+    private fun leaveRemoteDevice() {
+        remoteSessionId = null
+        remoteJob?.cancel()
+        remoteJob = null
+        setState {
+            copy(
+                remoteDevice = null,
+                playback = PlaybackState(
+                    shuffle = playback.shuffle,
+                    repeatMode = playback.repeatMode,
+                    crossfadeEnabled = playback.crossfadeEnabled,
+                ),
+            )
+        }
+    }
+
+    /** What another device wants this one to play. */
+    private fun onRemoteCommand(command: RemoteCommand) {
+        if (remoteSessionId != null) {
+            // Starting something here makes this the device that plays; the rest is about what isn't playing here
+            when (command) {
+                is RemoteCommand.PlaySongs, is RemoteCommand.Load, is RemoteCommand.PlayNow -> leaveRemoteDevice()
+                else -> return
+            }
+        }
+        when (command) {
+            is RemoteCommand.PlaySongs -> playSongs(
+                command.songs,
+                command.startIndex,
+                command.shuffle,
+                PendingStart(command.startPositionMs, paused = false).takeIf { command.startPositionMs > 0 },
+            )
+            is RemoteCommand.Load -> load(command.playback, command.paused)
+            RemoteCommand.Play -> onEvent(PlayerEvent.Play)
+            RemoteCommand.Pause -> onEvent(PlayerEvent.Pause)
+            RemoteCommand.PlayPause -> onEvent(PlayerEvent.PlayPause)
+            RemoteCommand.Stop -> stopPlayback()
+            RemoteCommand.Next -> playNext()
+            RemoteCommand.Previous -> playPrevious()
+            is RemoteCommand.SeekTo -> onEvent(PlayerEvent.SeekTo(command.positionMs))
+            is RemoteCommand.SeekBy -> {
+                val playback = currentState.playback
+                val position = (playback.positionMs + command.deltaMs).coerceIn(0, playback.durationMs.coerceAtLeast(0))
+                onEvent(PlayerEvent.SeekTo(position))
+            }
+            is RemoteCommand.SetShuffle -> setState { copy(playback = playback.copy(shuffle = command.shuffle)) }
+            is RemoteCommand.SetRepeat -> setState { copy(playback = playback.copy(repeatMode = command.repeatMode)) }
+            is RemoteCommand.AddToQueue -> addToQueue(command.songs)
+            is RemoteCommand.MoveInQueue -> moveInQueue(command.from, command.to)
+            is RemoteCommand.RemoveFromQueue -> removeFromQueue(command.index)
+            is RemoteCommand.PlayQueueIndex -> playQueueIndex(command.index)
+            is RemoteCommand.PlayNow -> playNow(command.song)
+        }
+    }
+
+    /** Continues [playback] here, at its song and position. */
+    private fun load(playback: PlaybackState, paused: Boolean) {
+        val index = playback.currentIndex.takeIf { it in playback.queue.indices } ?: return
+        hasAutoAdvanced = false
+        hasPreparedNext = false
+        hasCrossfadeStarted = false
+        setState {
+            copy(
+                playback = this.playback.copy(
+                    queue = playback.queue,
+                    currentIndex = index,
+                    currentSong = playback.queue[index],
+                    queuedCount = playback.queuedCount,
+                    shuffle = playback.shuffle,
+                    repeatMode = playback.repeatMode,
+                    positionMs = playback.positionMs,
+                    status = PlaybackStatus.Buffering,
+                )
+            )
+        }
+        playCurrent(PendingStart(playback.positionMs, paused))
     }
 
     private suspend fun loadLyrics(song: Song) {
@@ -266,7 +489,7 @@ class PlayerViewModel(
         }
     }
 
-    private fun playSongs(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
+    private fun playSongs(songs: List<Song>, startIndex: Int, shuffle: Boolean?, start: PendingStart? = null) {
         val targetShuffle = shuffle ?: currentState.playback.shuffle
         val queue: List<Song>
         val index: Int
@@ -303,7 +526,7 @@ class PlayerViewModel(
                 )
             )
         }
-        playCurrent()
+        playCurrent(start)
     }
 
     /** Current song at [index]; skipping forward past queued songs counts them as played. */
@@ -408,7 +631,7 @@ class PlayerViewModel(
 
     /** The song after the current one may be a different one now; then the pre-buffered one is replaced. */
     private fun onUpcomingChanged() {
-        if (!hasPreparedNext || hasCrossfadeStarted) return
+        if (!hasPreparedNext || hasCrossfadeStarted || remoteSessionId != null) return
         val url = getNextSong()?.takeIf { !playsAsVideo(it) }?.let { streamUrl(it) } ?: return
         crossfadePlayer?.prepareNext(url)
     }
@@ -445,7 +668,10 @@ class PlayerViewModel(
         }
     }
 
-    private fun playCurrent() {
+    /** [start] is where to continue, once the song is loaded. */
+    private fun playCurrent(start: PendingStart? = null) {
+        // Before playing: players may report their first state right away
+        pendingStart = start
         val song = currentState.playback.currentSong ?: return
         val videoUrl = videoUrl(song)
         setState { copy(isVideo = videoUrl != null) }
@@ -504,19 +730,22 @@ class PlayerViewModel(
                 }
                 playCurrent()
             }
-            else -> {
-                audioPlayer.stop()
-                setState {
-                    copy(
-                        playback = playback.copy(
-                            status = PlaybackStatus.Idle,
-                            currentSong = null,
-                            currentIndex = -1,
-                            queuedCount = 0,
-                        )
-                    )
-                }
-            }
+            else -> stopPlayback()
+        }
+    }
+
+    private fun stopPlayback() {
+        audioPlayer.stop()
+        pendingStart = null
+        setState {
+            copy(
+                playback = playback.copy(
+                    status = PlaybackStatus.Idle,
+                    currentSong = null,
+                    currentIndex = -1,
+                    queuedCount = 0,
+                )
+            )
         }
     }
 
@@ -545,12 +774,13 @@ class PlayerViewModel(
     }
 
     private fun toggleRepeat() {
-        val next = when (currentState.playback.repeatMode) {
-            RepeatMode.Off -> RepeatMode.All
-            RepeatMode.All -> RepeatMode.One
-            RepeatMode.One -> RepeatMode.Off
-        }
-        setState { copy(playback = playback.copy(repeatMode = next)) }
+        setState { copy(playback = playback.copy(repeatMode = playback.repeatMode.next())) }
+    }
+
+    private fun RepeatMode.next() = when (this) {
+        RepeatMode.Off -> RepeatMode.All
+        RepeatMode.All -> RepeatMode.One
+        RepeatMode.One -> RepeatMode.Off
     }
 
     private fun toggleCrossfade() {

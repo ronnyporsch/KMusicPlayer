@@ -2,6 +2,10 @@ package de.ronnyporsch.open_rgb.kmusicplayer
 
 interface Platform {
     val name: String
+
+    /** How other devices list this one, e.g. for remote control. */
+    val deviceName: String get() = name
+
     val isMobile: Boolean
 
     /** Audio containers the platform's [de.ronnyporsch.open_rgb.kmusicplayer.platform.AudioPlayer] can decode; servers transcode everything else. */

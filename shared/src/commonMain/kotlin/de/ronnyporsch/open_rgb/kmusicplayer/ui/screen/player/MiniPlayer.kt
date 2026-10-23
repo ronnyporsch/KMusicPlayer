@@ -161,7 +161,9 @@ fun MiniPlayer(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     Spacer(Modifier.height(2.dp))
-                    if (isMobile) {
+                    if (isMobile && state.remoteDevice != null) {
+                        PlayingOnText(state)
+                    } else if (isMobile) {
                         // Taps on the mini player open the big player; artists aren't links here
                         Text(
                             text = song.artists.joinToString { it.name }.ifEmpty { song.artist },
@@ -213,6 +215,9 @@ fun MiniPlayer(
                 }
 
                 // Mobile: lyrics sit left of play/pause so play/pause stays at the edge
+                if (isMobile && (state.devices.isNotEmpty() || state.remoteDevice != null)) {
+                    DevicesButton(state, viewModel::onEvent, Modifier.size(buttonSize), iconSize = iconSize)
+                }
                 if (isMobile) lyricsButton()
 
                 TooltipIconButton(
@@ -258,6 +263,8 @@ fun MiniPlayer(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    PlayingOnText(state, Modifier.weight(1f, fill = false).padding(end = 4.dp))
+                    DevicesButton(state, viewModel::onEvent, Modifier.size(32.dp))
                     QueueButtons(openQueueTab, onQueueClick, Modifier.size(32.dp))
                 }
             }

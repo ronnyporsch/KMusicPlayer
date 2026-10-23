@@ -5,10 +5,15 @@ import de.ronnyporsch.open_rgb.kmusicplayer.platform.createHttpClient
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.websocket.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
 data class JellyfinSession(
@@ -34,6 +39,7 @@ class JellyfinApiService {
         install(ContentNegotiation) {
             json(json)
         }
+        install(WebSockets)
         expectSuccess = false
     }
 
@@ -50,7 +56,7 @@ class JellyfinApiService {
 
     private fun authorizationHeader(deviceId: String, token: String?): String {
         // Quotes and commas would break the header format
-        val device = getPlatform().name.replace(Regex("""[",]"""), "")
+        val device = getPlatform().deviceName.replace(Regex("""[",]"""), "")
         return buildString {
             append("""MediaBrowser Client="KMusicPlayer", Device="$device", DeviceId="$deviceId", Version="$CLIENT_VERSION"""")
             if (token != null) append(""", Token="$token"""")
@@ -192,6 +198,84 @@ class JellyfinApiService {
         }.buildString()
     }
 
+    // Sessions: remote control between clients and playback reporting
+
+    /** Lets other clients of the user control this one, see [runSocket]. */
+    suspend fun postCapabilities(capabilities: ClientCapabilitiesDto) = postJson("Sessions/Capabilities/Full", capabilities)
+
+    suspend fun reportPlaybackStart(report: PlaybackReportDto) = postJson("Sessions/Playing", report)
+
+    suspend fun reportPlaybackProgress(report: PlaybackReportDto) = postJson("Sessions/Playing/Progress", report)
+
+    suspend fun reportPlaybackStopped(report: PlaybackReportDto) = postJson("Sessions/Playing/Stopped", report)
+
+    /** The sessions the user can control, this client's own included. */
+    suspend fun getSessions(): List<SessionInfoDto> = get("Sessions", mapOf("controllableByUserId" to userId))
+
+    /** The id of this client's session; null until the server has one, e.g. right after logging in. */
+    suspend fun getOwnSessionId(): String? =
+        get<List<SessionInfoDto>>("Sessions", mapOf("deviceId" to requireSession().deviceId)).firstOrNull()?.id
+
+    /** Makes the client of [sessionId] play the items; [playCommand] is one of [PlayRequestDto.playCommand]. */
+    suspend fun sendPlay(sessionId: String, itemIds: List<String>, playCommand: String, startIndex: Int? = null, startPositionTicks: Long? = null) {
+        client.post("${baseUrl()}/Sessions/$sessionId/Playing") {
+            authorize()
+            parameter("playCommand", playCommand)
+            parameter("itemIds", itemIds.joinToString(","))
+            if (startIndex != null) parameter("startIndex", startIndex)
+            if (startPositionTicks != null) parameter("startPositionTicks", startPositionTicks)
+        }.ensureSuccess()
+    }
+
+    /** [command] is one of [PlaystateRequestDto.command]. */
+    suspend fun sendPlaystate(sessionId: String, command: String, seekPositionTicks: Long? = null) {
+        client.post("${baseUrl()}/Sessions/$sessionId/Playing/$command") {
+            authorize()
+            if (seekPositionTicks != null) parameter("seekPositionTicks", seekPositionTicks)
+        }.ensureSuccess()
+    }
+
+    suspend fun sendGeneralCommand(sessionId: String, command: GeneralCommandDto) = postJson("Sessions/$sessionId/Command", command)
+
+    /**
+     * Connects to the server's websocket, through which it forwards what other clients send to this one, and passes
+     * its messages to [onMessage] until it closes. [onConnected] gets to send messages meanwhile.
+     */
+    suspend fun runSocket(
+        onConnected: suspend (send: suspend (SocketMessageDto) -> Unit) -> Unit,
+        onMessage: suspend (SocketMessageDto) -> Unit,
+    ) {
+        val s = requireSession()
+        val url = URLBuilder(s.serverUrl).apply {
+            protocol = if (protocol == URLProtocol.HTTPS) URLProtocol.WSS else URLProtocol.WS
+            appendPathSegments("socket")
+            parameters.append("ApiKey", s.accessToken)
+            parameters.append("deviceId", s.deviceId)
+        }.buildString()
+        client.webSocket(url) {
+            val send: suspend (SocketMessageDto) -> Unit = { send(Frame.Text(json.encodeToString(it))) }
+            launch { onConnected(send) }
+            var keepAlive: Job? = null
+            for (frame in incoming) {
+                if (frame !is Frame.Text) continue
+                val message = runCatching { json.decodeFromString<SocketMessageDto>(frame.readText()) }.getOrNull() ?: continue
+                if (message.messageType == "ForceKeepAlive") {
+                    // The server drops the connection if it doesn't hear from the client within that many seconds
+                    val timeoutSeconds = message.data?.toString()?.toLongOrNull() ?: 60L
+                    keepAlive?.cancel()
+                    keepAlive = launch {
+                        while (true) {
+                            send(SocketMessageDto("KeepAlive"))
+                            delay(timeoutSeconds * 1000L / 2)
+                        }
+                    }
+                    continue
+                }
+                onMessage(message)
+            }
+        }
+    }
+
     // KMusicPlayer plugin
 
     /** Returns null if the KMusicPlayer plugin isn't installed on the server. */
@@ -326,6 +410,14 @@ class JellyfinApiService {
         }
         response.ensureSuccess()
         return response.body()
+    }
+
+    private suspend inline fun <reified T> postJson(path: String, body: T) {
+        client.post("${baseUrl()}/$path") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.ensureSuccess()
     }
 
     private suspend fun HttpResponse.ensureSuccess() {

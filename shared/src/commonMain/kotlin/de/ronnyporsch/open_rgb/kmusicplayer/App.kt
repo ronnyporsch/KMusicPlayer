@@ -199,6 +199,8 @@ fun App() {
             when (effect) {
                 is PlayerEffect.PlaybackError ->
                     snackbarHostState.showSnackbar("Playback failed: ${effect.message}", withDismissAction = true)
+                is PlayerEffect.Message ->
+                    snackbarHostState.showSnackbar(effect.message, duration = SnackbarDuration.Short)
             }
         }
     }
@@ -362,6 +364,8 @@ fun App() {
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
+                        // While something plays, the mini player has it
+                        if (!hasSong) DevicesButton(playerState, playerViewModel::onEvent)
                     }
                 }
             },

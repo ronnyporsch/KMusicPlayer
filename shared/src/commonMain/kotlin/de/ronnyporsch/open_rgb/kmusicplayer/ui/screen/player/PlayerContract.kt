@@ -1,5 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.player
 
+import de.ronnyporsch.open_rgb.kmusicplayer.data.remote.RemoteDevice
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.DEFAULT_VIDEO_QUALITY
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Lyrics
@@ -26,7 +27,16 @@ data class PlayerState(
     val videoFormat: VideoStreamInfo? = null,
     /** Heights the current video is available in, highest first; empty until known. */
     val videoHeights: List<Int> = emptyList(),
-)
+    /** Whether the server lets clients control each other's playback (Jellyfin). */
+    val remoteControlAvailable: Boolean = false,
+    /** Other devices of the user whose playback can be controlled. */
+    val devices: List<RemoteDevice> = emptyList(),
+    /** The device whose playback [playback] is and the events control; null for this device. */
+    val remoteDevice: RemoteDevice? = null,
+) {
+    /** Whether the songs of the queue can be moved, removed and jumped to. */
+    val canEditQueue: Boolean get() = remoteDevice?.isKMusicPlayer != false
+}
 
 sealed interface LyricsState {
     data object Loading : LyricsState
@@ -63,8 +73,14 @@ sealed class PlayerEvent {
     data class SeekTo(val positionMs: Long) : PlayerEvent()
     /** Streams videos in the highest resolution up to this height from now on, the current one too. */
     data class SetVideoQuality(val height: Int) : PlayerEvent()
+    /**
+     * Plays on the device with this session id from now on ([PlayerState.devices]), or on this device if null.
+     * What's playing moves along.
+     */
+    data class SelectDevice(val sessionId: String?) : PlayerEvent()
 }
 
 sealed class PlayerEffect {
     data class PlaybackError(val message: String) : PlayerEffect()
+    data class Message(val message: String) : PlayerEffect()
 }
