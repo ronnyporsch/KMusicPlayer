@@ -4,6 +4,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.InvalidCredentialsEx
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicServerConnection
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.PlayHistory
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.SettingsHolder
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.CrossfadeAudioPlayer
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.createAudioPlayer
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.createSystemMediaControls
@@ -14,7 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
@@ -30,6 +33,8 @@ class AppSession private constructor() {
     val connection = MusicServerConnection(settingsHolder)
     private val audioPlayer = CrossfadeAudioPlayer(createAudioPlayer(), createAudioPlayer())
     val playerViewModel = PlayerViewModel(audioPlayer, connection.repository, settingsHolder, PlayHistory { settingsHolder.settings.value.serverKey })
+    /** For the desktop window title, without the window needing the ViewModel classes. */
+    val currentSong: Flow<Song?> = playerViewModel.state.map { it.playback.currentSong }.distinctUntilChanged()
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     /** Whether there was a saved login when the session started; then it connects in the background. */

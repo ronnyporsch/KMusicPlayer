@@ -1,6 +1,5 @@
 package de.ronnyporsch.open_rgb.kmusicplayer
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.PlaybackStatus
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.rememberSystemFullscreen
@@ -69,7 +68,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragOverlay
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PlaylistEditor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.onMouseNavigation
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -357,8 +356,8 @@ fun App() {
                             singleLine = true,
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = SpotifyGreen,
-                                cursorColor = SpotifyGreen,
+                                focusedBorderColor = AccentColor,
+                                cursorColor = AccentColor,
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
@@ -622,12 +621,12 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
                 }
             },
             icon = {
-                Icon(Icons.Default.LibraryMusic, contentDescription = null, tint = if (currentScreen is Screen.Library) SpotifyGreen else SpotifyLightGray)
+                Icon(Icons.Default.LibraryMusic, contentDescription = null, tint = if (currentScreen is Screen.Library) AccentColor else SpotifyLightGray)
             },
             label = {
                 Text(
                     "Library",
-                    color = if (currentScreen is Screen.Library) SpotifyGreen else SpotifyLightGray,
+                    color = if (currentScreen is Screen.Library) AccentColor else SpotifyLightGray,
                     fontWeight = if (currentScreen is Screen.Library) FontWeight.Bold else FontWeight.Normal,
                 )
             },
@@ -644,12 +643,12 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
                 }
             },
             icon = {
-                Icon(Icons.Default.Settings, contentDescription = null, tint = if (currentScreen is Screen.Settings) SpotifyGreen else SpotifyLightGray)
+                Icon(Icons.Default.Settings, contentDescription = null, tint = if (currentScreen is Screen.Settings) AccentColor else SpotifyLightGray)
             },
             label = {
                 Text(
                     "Settings",
-                    color = if (currentScreen is Screen.Settings) SpotifyGreen else SpotifyLightGray,
+                    color = if (currentScreen is Screen.Settings) AccentColor else SpotifyLightGray,
                     fontWeight = if (currentScreen is Screen.Settings) FontWeight.Bold else FontWeight.Normal,
                 )
             },

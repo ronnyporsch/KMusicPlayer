@@ -25,7 +25,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.navigation.QueueTab
 import kotlinx.coroutines.isActive
@@ -72,14 +72,14 @@ fun QueueButtons(
         onClick = { onClick(QueueTab.Queue) },
         icon = Icons.AutoMirrored.Filled.QueueMusic,
         contentDescription = "Queue",
-        tint = if (openTab == QueueTab.Queue) SpotifyGreen else SpotifyLightGray,
+        tint = if (openTab == QueueTab.Queue) AccentColor else SpotifyLightGray,
         modifier = buttonModifier,
     )
     TooltipIconButton(
         onClick = { onClick(QueueTab.RecentlyPlayed) },
         icon = Icons.Default.History,
         contentDescription = "Recently played",
-        tint = if (openTab == QueueTab.RecentlyPlayed) SpotifyGreen else SpotifyLightGray,
+        tint = if (openTab == QueueTab.RecentlyPlayed) AccentColor else SpotifyLightGray,
         modifier = buttonModifier,
     )
 }

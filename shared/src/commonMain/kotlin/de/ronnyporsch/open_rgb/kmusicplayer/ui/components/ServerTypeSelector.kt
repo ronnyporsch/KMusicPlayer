@@ -5,7 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ServerType
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 @Composable
 fun ServerTypeSelector(selected: ServerType, onSelected: (ServerType) -> Unit, modifier: Modifier = Modifier) {
@@ -16,8 +16,8 @@ fun ServerTypeSelector(selected: ServerType, onSelected: (ServerType) -> Unit, m
                 onClick = { onSelected(type) },
                 shape = SegmentedButtonDefaults.itemShape(index, ServerType.entries.size),
                 colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = SpotifyGreen.copy(alpha = 0.25f),
-                    activeBorderColor = SpotifyGreen,
+                    activeContainerColor = AccentColor.copy(alpha = 0.25f),
+                    activeBorderColor = AccentColor,
                 ),
             ) {
                 Text(type.displayName)

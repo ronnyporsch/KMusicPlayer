@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 /** Downloads a YouTube Music song into the server's library and shows the progress. */
@@ -23,13 +23,13 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 fun YouTubeDownloadButton(status: DownloadStatus?, onDownload: () -> Unit) {
     when (status) {
         DownloadStatus.InProgress -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = SpotifyGreen, strokeWidth = 2.dp)
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = AccentColor, strokeWidth = 2.dp)
         }
         is DownloadStatus.Done, DownloadStatus.InLibrary -> TooltipIconButton(
             onClick = {},
             icon = Icons.Default.CheckCircle,
             contentDescription = if (status is DownloadStatus.Done) "Added to library" else "Already in library",
-            tint = SpotifyGreen,
+            tint = AccentColor,
         )
         is DownloadStatus.Failed -> TooltipIconButton(
             onClick = onDownload,

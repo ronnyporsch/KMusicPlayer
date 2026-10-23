@@ -25,7 +25,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTube
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -234,8 +234,8 @@ fun SongContextMenu(
             )
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("New playlist…", color = SpotifyGreen) },
-                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, tint = SpotifyGreen) },
+                text = { Text("New playlist…", color = AccentColor) },
+                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, tint = AccentColor) },
                 onClick = {
                     dialogSongs = songs
                     showCreateDialog = true
@@ -275,7 +275,7 @@ fun SongContextMenu(
                 )
             },
             confirmButton = {
-                Button(onClick = create, colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)) {
+                Button(onClick = create, colors = ButtonDefaults.buttonColors(containerColor = AccentColor)) {
                     Text("Create")
                 }
             },

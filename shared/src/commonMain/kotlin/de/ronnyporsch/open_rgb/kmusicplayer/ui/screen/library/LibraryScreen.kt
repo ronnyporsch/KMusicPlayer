@@ -32,7 +32,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.*
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FAVORITE_SONGS_TITLE
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.favorites.FavoriteSongsList
@@ -72,7 +72,7 @@ fun LibraryScreen(
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = SpotifyGreen)
+                CircularProgressIndicator(color = AccentColor)
             }
         } else if (state.error != null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -80,7 +80,7 @@ fun LibraryScreen(
                     Text(state.error!!, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = { viewModel.onEvent(LibraryEvent.Refresh) }) {
-                        Text("Retry", color = SpotifyGreen)
+                        Text("Retry", color = AccentColor)
                     }
                 }
             }
@@ -160,7 +160,7 @@ private fun CreatePlaylistDialog(viewModel: LibraryViewModel, onDismiss: () -> U
                         onDismiss()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+                colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
             ) {
                 Text("Create")
             }
@@ -242,7 +242,7 @@ private fun LibrarySidebar(
                                 Icon(
                                     Icons.Default.Favorite,
                                     contentDescription = "Favorites",
-                                    tint = if (state.selectedSidebarTab == tab) SpotifyGreen else SpotifyLightGray,
+                                    tint = if (state.selectedSidebarTab == tab) AccentColor else SpotifyLightGray,
                                 )
                             }
                         } else null,
@@ -577,7 +577,7 @@ private fun ArtistDetailPane(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                CircularProgressIndicator(color = SpotifyGreen, modifier = Modifier.size(24.dp))
+                                CircularProgressIndicator(color = AccentColor, modifier = Modifier.size(24.dp))
                             }
                         }
                     } else if (songs.isNotEmpty()) {
@@ -591,7 +591,7 @@ private fun ArtistDetailPane(
                                 Button(
                                     onClick = onPlayAll,
                                     modifier = Modifier.weight(1f).height(44.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                     shape = RoundedCornerShape(0.dp),
                                 ) {
                                     Text("\u25B6  Play All", fontWeight = FontWeight.Bold)
@@ -762,7 +762,7 @@ private fun AlbumDetailPane(
                             Button(
                                 onClick = onPlayAll,
                                 modifier = Modifier.weight(1f).height(44.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                 shape = RoundedCornerShape(0.dp),
                             ) {
                                 Text("\u25B6  Play", fontWeight = FontWeight.Bold)
@@ -924,7 +924,7 @@ private fun PlaylistSidebar(
                 fontWeight = FontWeight.Bold,
             )
             TextButton(onClick = onCreatePlaylist) {
-                Text("+ New", color = SpotifyGreen, fontWeight = FontWeight.Bold)
+                Text("+ New", color = AccentColor, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -948,9 +948,9 @@ private fun PlaylistSidebar(
                                     .clip(RoundedCornerShape(0.dp))
                                     .background(
                                         when {
-                                            dropTarget?.isHovered == true -> SpotifyGreen.copy(alpha = 0.32f)
-                                            isSelected -> SpotifyGreen.copy(alpha = 0.16f)
-                                            dropTarget?.isActive == true -> SpotifyGreen.copy(alpha = 0.08f)
+                                            dropTarget?.isHovered == true -> AccentColor.copy(alpha = 0.32f)
+                                            isSelected -> AccentColor.copy(alpha = 0.16f)
+                                            dropTarget?.isActive == true -> AccentColor.copy(alpha = 0.08f)
                                             else -> Color.Transparent
                                         }
                                     )
@@ -1045,7 +1045,7 @@ private fun PlaylistDetailPane(
         when {
             isLoading -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = SpotifyGreen)
+                    CircularProgressIndicator(color = AccentColor)
                 }
             }
 
@@ -1131,7 +1131,7 @@ private fun PlaylistDetailPane(
                                 Button(
                                     onClick = onPlayAll,
                                     modifier = Modifier.weight(1f).height(44.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                     shape = RoundedCornerShape(0.dp),
                                 ) {
                                     Text("\u25B6  Play", fontWeight = FontWeight.Bold)
@@ -1184,7 +1184,7 @@ private fun ArtistListItem(artist: Artist, isSelected: Boolean, onClick: () -> U
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(0.dp))
-            .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
+            .background(if (isSelected) AccentColor.copy(alpha = 0.16f) else Color.Transparent)
             .combinedClickable(
                 onClick = onClick,
                 onDoubleClick = onDoubleClick,
@@ -1223,7 +1223,7 @@ private fun AlbumListItem(album: Album, isSelected: Boolean, onClick: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(0.dp))
-            .background(if (isSelected) SpotifyGreen.copy(alpha = 0.16f) else Color.Transparent)
+            .background(if (isSelected) AccentColor.copy(alpha = 0.16f) else Color.Transparent)
             .combinedClickable(
                 onClick = onClick,
                 onDoubleClick = onDoubleClick,
@@ -1289,7 +1289,7 @@ private fun FavoritesSidebar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            if (state.activeDetailView == LibraryDetailView.FavoriteSongs) SpotifyGreen.copy(alpha = 0.16f)
+                            if (state.activeDetailView == LibraryDetailView.FavoriteSongs) AccentColor.copy(alpha = 0.16f)
                             else Color.Transparent
                         )
                         .clickable(onClick = onSongsClick)

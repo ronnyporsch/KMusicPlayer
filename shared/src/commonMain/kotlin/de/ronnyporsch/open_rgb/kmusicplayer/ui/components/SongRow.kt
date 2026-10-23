@@ -4,10 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.animation.core.animate
@@ -50,7 +47,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.isYouTube
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 /** Ids of the songs that are downloaded on this device; [SongRow] marks them. */
 val LocalDownloadedSongIds = compositionLocalOf<Set<String>> { emptySet() }
@@ -181,13 +178,13 @@ fun SongRow(
     Box {
         if (swipeOffset > 0f) {
             Box(
-                modifier = Modifier.matchParentSize().background(SpotifyGreen.copy(alpha = if (swipeOffset >= swipeThreshold) 0.35f else 0.15f)),
+                modifier = Modifier.matchParentSize().background(AccentColor.copy(alpha = if (swipeOffset >= swipeThreshold) 0.35f else 0.15f)),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.QueueMusic,
                     contentDescription = "Add to queue",
-                    tint = SpotifyGreen,
+                    tint = AccentColor,
                     modifier = Modifier.padding(start = 24.dp),
                 )
             }
@@ -219,7 +216,7 @@ fun SongRow(
                 Text(
                     text = song.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = if (isPlaying) SpotifyGreen else MaterialTheme.colorScheme.onSurface,
+                    color = if (isPlaying) AccentColor else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -229,12 +226,12 @@ fun SongRow(
                         Icon(
                             Icons.Default.DownloadForOffline,
                             contentDescription = "Downloaded",
-                            tint = SpotifyGreen,
+                            tint = AccentColor,
                             modifier = Modifier.padding(end = 4.dp).size(14.dp),
                         )
                     } else if (song.id in LocalPendingSongDownloads.current.downloading) {
                         CircularProgressIndicator(
-                            color = SpotifyGreen,
+                            color = AccentColor,
                             strokeWidth = 1.5.dp,
                             modifier = Modifier.padding(end = 4.dp).size(12.dp),
                         )
@@ -277,7 +274,7 @@ fun SongRow(
                         Text(
                             text = song.album,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (onAlbumClick != null) SpotifyGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (onAlbumClick != null) AccentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = if (onAlbumClick != null) Modifier.clickable { onAlbumClick(song.albumId) } else Modifier,

@@ -3,7 +3,6 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -18,7 +17,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
 
 @Composable
@@ -53,7 +52,7 @@ fun CoverArtImage(
             Text(
                 text = placeholderText,
                 fontSize = placeholderFontSize,
-                color = SpotifyGreen,
+                color = AccentColor,
             )
         }
     }
@@ -89,7 +88,7 @@ fun ArtistImage(
             Text(
                 text = artistName.firstOrNull()?.uppercase() ?: "?",
                 style = MaterialTheme.typography.titleMedium,
-                color = SpotifyGreen,
+                color = AccentColor,
             )
         }
     }

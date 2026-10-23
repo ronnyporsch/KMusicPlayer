@@ -39,7 +39,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.libraryFormat
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 @Composable
@@ -68,7 +68,7 @@ fun ArtistAlbumsScreen(
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = SpotifyGreen)
+                CircularProgressIndicator(color = AccentColor)
             }
         } else {
             LazyVerticalGrid(
@@ -162,7 +162,7 @@ fun ArtistAlbumsScreen(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            CircularProgressIndicator(color = SpotifyGreen, modifier = Modifier.size(24.dp))
+                            CircularProgressIndicator(color = AccentColor, modifier = Modifier.size(24.dp))
                         }
                     }
                 } else if (state.songs.isNotEmpty()) {
@@ -176,7 +176,7 @@ fun ArtistAlbumsScreen(
                             Button(
                                 onClick = { viewModel.onEvent(ArtistAlbumsEvent.PlayAllSongs) },
                                 modifier = Modifier.weight(1f).height(44.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                 shape = RoundedCornerShape(0.dp),
                             ) {
                                 Text("\u25B6  Play All", fontWeight = FontWeight.Bold)
@@ -294,7 +294,7 @@ private fun AlbumCard(album: Album, downloaded: Boolean, onClick: () -> Unit) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "In library",
-                    tint = SpotifyGreen,
+                    tint = AccentColor,
                     modifier = Modifier
                         .padding(6.dp)
                         .size(26.dp)

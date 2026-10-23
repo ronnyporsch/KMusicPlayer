@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Lyrics
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.VerticalScrollbar
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 /** Lyrics of the current song; synced lyrics follow [positionMs] and seek to a line when it's clicked. */
@@ -40,7 +40,7 @@ fun LyricsView(
 ) {
     Box(modifier, contentAlignment = Alignment.Center) {
         when (state) {
-            LyricsState.Loading -> CircularProgressIndicator(color = SpotifyGreen)
+            LyricsState.Loading -> CircularProgressIndicator(color = AccentColor)
             LyricsState.NotFound -> LyricsMessage("No lyrics found")
             is LyricsState.Failed -> LyricsMessage(state.message)
             is LyricsState.Loaded -> LyricLines(state.lyrics, positionMs, onSeek)

@@ -37,7 +37,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.HoverLinkText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.RepeatMode
@@ -105,7 +105,7 @@ fun MiniPlayer(
                 },
                 modifier = Modifier.fillMaxWidth().height(2.dp),
                 colors = SliderDefaults.colors(
-                    activeTrackColor = SpotifyGreen,
+                    activeTrackColor = AccentColor,
                     inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                     thumbColor = Color.Transparent
                 ),
@@ -196,7 +196,7 @@ fun MiniPlayer(
                         onClick = { viewModel.onEvent(PlayerEvent.ToggleShuffle) },
                         icon = Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = if (playback.shuffle) SpotifyGreen else SpotifyLightGray,
+                        tint = if (playback.shuffle) AccentColor else SpotifyLightGray,
                         modifier = Modifier.size(32.dp)
                     )
 
@@ -204,7 +204,7 @@ fun MiniPlayer(
                         onClick = { viewModel.onEvent(PlayerEvent.ToggleCrossfade) },
                         icon = Icons.Default.GraphicEq,
                         contentDescription = "Crossfade",
-                        tint = if (playback.crossfadeEnabled) SpotifyGreen else SpotifyLightGray,
+                        tint = if (playback.crossfadeEnabled) AccentColor else SpotifyLightGray,
                         modifier = Modifier.size(32.dp)
                     )
 
@@ -247,7 +247,7 @@ fun MiniPlayer(
                             RepeatMode.One -> Icons.Default.RepeatOne
                         },
                         contentDescription = "Repeat",
-                        tint = if (playback.repeatMode != RepeatMode.Off) SpotifyGreen else SpotifyLightGray,
+                        tint = if (playback.repeatMode != RepeatMode.Off) AccentColor else SpotifyLightGray,
                         modifier = Modifier.size(32.dp)
                     )
 

@@ -54,7 +54,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.platform.AudioPlayer
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.VideoSurface
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import kotlinx.coroutines.delay
 
 /**
@@ -108,7 +108,7 @@ fun VideoPlayerView(
             VideoSurface(player, Modifier.fillMaxSize())
         }
         if (isBuffering) {
-            CircularProgressIndicator(color = SpotifyGreen)
+            CircularProgressIndicator(color = AccentColor)
         }
         // On top of the picture, which (an Android view, a browser element) mustn't get the input
         Box(
@@ -171,8 +171,8 @@ fun BoxScope.FullscreenVideoControls(viewModel: PlayerViewModel) {
                 value = if (playback.durationMs > 0) (playback.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f) else 0f,
                 onValueChange = { fraction -> viewModel.onEvent(PlayerEvent.SeekTo((fraction * playback.durationMs).toLong())) },
                 colors = SliderDefaults.colors(
-                    thumbColor = SpotifyGreen,
-                    activeTrackColor = SpotifyGreen,
+                    thumbColor = AccentColor,
+                    activeTrackColor = AccentColor,
                     inactiveTrackColor = Color.White.copy(alpha = 0.3f),
                 ),
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),

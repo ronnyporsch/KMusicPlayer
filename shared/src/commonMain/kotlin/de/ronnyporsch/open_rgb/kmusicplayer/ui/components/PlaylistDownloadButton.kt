@@ -11,7 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.data.offline.PlaylistDownloadStatus
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 /**
@@ -42,7 +42,7 @@ fun PlaylistDownloadButton(
                 CircularProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.size(22.dp),
-                    color = SpotifyGreen,
+                    color = AccentColor,
                     strokeWidth = 2.dp,
                 )
             }
@@ -51,7 +51,7 @@ fun PlaylistDownloadButton(
             onClick = { showDialog = true },
             icon = Icons.Default.DownloadDone,
             contentDescription = "Downloaded",
-            tint = SpotifyGreen,
+            tint = AccentColor,
             modifier = modifier,
         )
         // Some songs failed, e.g. because the connection dropped
@@ -97,7 +97,7 @@ fun PlaylistDownloadButton(
                         showDialog = false
                         onDownload()
                     }) {
-                        Text("Retry", color = SpotifyGreen)
+                        Text("Retry", color = AccentColor)
                     }
                 }
                 TextButton(onClick = { showDialog = false }) { Text("Cancel") }

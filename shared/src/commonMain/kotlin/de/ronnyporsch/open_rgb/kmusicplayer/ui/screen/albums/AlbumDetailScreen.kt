@@ -3,7 +3,6 @@ package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.albums
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.FavoriteButton
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -15,12 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.libraryFormat
@@ -35,7 +31,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.open_rgb.kmusicplayer.data.youtube.DownloadStatus
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 @Composable
 fun AlbumDetailScreen(
@@ -62,7 +58,7 @@ fun AlbumDetailScreen(
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = SpotifyGreen)
+                CircularProgressIndicator(color = AccentColor)
             }
         } else {
             val album = state.album ?: return
@@ -153,7 +149,7 @@ fun AlbumDetailScreen(
                         Button(
                             onClick = { viewModel.onEvent(AlbumDetailEvent.PlayAll) },
                             modifier = Modifier.weight(1f).height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                             shape = RoundedCornerShape(0.dp),
                         ) {
                             Text("\u25B6  Play", fontWeight = FontWeight.Bold)
@@ -239,7 +235,7 @@ private fun AlbumDownloadButton(
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
     ) {
         if (running) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = SpotifyGreen, strokeWidth = 2.dp)
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AccentColor, strokeWidth = 2.dp)
             Spacer(Modifier.width(8.dp))
         }
         Text(label, fontWeight = FontWeight.Bold, maxLines = 1)

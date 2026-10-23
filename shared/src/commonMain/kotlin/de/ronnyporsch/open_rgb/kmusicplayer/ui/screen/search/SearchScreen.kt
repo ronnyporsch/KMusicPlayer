@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,8 +19,6 @@ import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.youTubeArtistId
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ArtistImage
@@ -31,7 +28,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.YouTubeDownloadMessage
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 @Composable
@@ -57,7 +54,7 @@ fun SearchScreen(
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = SpotifyGreen)
+                CircularProgressIndicator(color = AccentColor)
             }
         } else if (!state.hasSearched) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -156,7 +153,7 @@ fun SearchScreen(
                                 Spacer(Modifier.width(12.dp))
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(18.dp),
-                                    color = SpotifyGreen,
+                                    color = AccentColor,
                                     strokeWidth = 2.dp,
                                 )
                             }

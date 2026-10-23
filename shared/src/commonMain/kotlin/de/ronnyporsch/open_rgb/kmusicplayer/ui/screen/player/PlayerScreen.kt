@@ -37,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
@@ -63,7 +62,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.HoverLinkText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.TooltipIconButton
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
 
@@ -215,8 +214,8 @@ fun PlayerScreen(
                     viewModel.onEvent(PlayerEvent.SeekTo(pos))
                 },
                 colors = SliderDefaults.colors(
-                    thumbColor = SpotifyGreen,
-                    activeTrackColor = SpotifyGreen,
+                    thumbColor = AccentColor,
+                    activeTrackColor = AccentColor,
                     inactiveTrackColor = SpotifySurface,
                 ),
             )
@@ -250,7 +249,7 @@ fun PlayerScreen(
                 onClick = { viewModel.onEvent(PlayerEvent.ToggleShuffle) },
                 icon = Icons.Default.Shuffle,
                 contentDescription = "Shuffle",
-                tint = if (playback.shuffle) SpotifyGreen else SpotifyLightGray,
+                tint = if (playback.shuffle) AccentColor else SpotifyLightGray,
                 modifier = controlModifier,
                 iconSize = toggleIconSize,
             )
@@ -259,7 +258,7 @@ fun PlayerScreen(
                 onClick = { viewModel.onEvent(PlayerEvent.ToggleCrossfade) },
                 icon = Icons.Default.GraphicEq,
                 contentDescription = "Crossfade",
-                tint = if (playback.crossfadeEnabled) SpotifyGreen else SpotifyLightGray,
+                tint = if (playback.crossfadeEnabled) AccentColor else SpotifyLightGray,
                 modifier = controlModifier,
                 iconSize = toggleIconSize,
             )
@@ -274,7 +273,7 @@ fun PlayerScreen(
             )
 
             Box(
-                modifier = Modifier.size(64.dp).clip(CircleShape).background(SpotifyGreen),
+                modifier = Modifier.size(64.dp).clip(CircleShape).background(AccentColor),
                 contentAlignment = Alignment.Center,
             ) {
                 TooltipIconButton(
@@ -306,7 +305,7 @@ fun PlayerScreen(
                     RepeatMode.One -> Icons.Default.RepeatOne
                 },
                 contentDescription = "Repeat",
-                tint = if (playback.repeatMode != RepeatMode.Off) SpotifyGreen else SpotifyLightGray,
+                tint = if (playback.repeatMode != RepeatMode.Off) AccentColor else SpotifyLightGray,
                 modifier = controlModifier,
                 iconSize = toggleIconSize,
             )
@@ -326,7 +325,7 @@ fun PlayerScreen(
                     onClick = { viewModel.onEvent(PlayerEvent.ToggleLyrics) },
                     icon = LyricsIcons.Lyrics,
                     contentDescription = if (state.showLyrics) "Hide lyrics" else "Show lyrics",
-                    tint = if (state.showLyrics) SpotifyGreen else SpotifyLightGray,
+                    tint = if (state.showLyrics) AccentColor else SpotifyLightGray,
                     modifier = controlModifier,
                     iconSize = toggleIconSize,
                 )
@@ -365,7 +364,7 @@ private fun VideoQualityButton(quality: Int, heights: List<Int>, onSelect: (Int)
                 DropdownMenuItem(
                     text = { Text(videoQualityLabel(height)) },
                     leadingIcon = {
-                        if (height == effective) Icon(Icons.Default.Check, contentDescription = null, tint = SpotifyGreen)
+                        if (height == effective) Icon(Icons.Default.Check, contentDescription = null, tint = AccentColor)
                         else Spacer(Modifier.size(24.dp))
                     },
                     onClick = {

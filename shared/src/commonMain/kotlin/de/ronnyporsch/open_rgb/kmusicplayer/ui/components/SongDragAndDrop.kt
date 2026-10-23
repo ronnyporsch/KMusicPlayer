@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 /**
  * Dragging songs within the app, e.g. from any song list onto a playlist in the sidebar.
@@ -137,7 +137,7 @@ fun SongDragOverlay(dragAndDrop: SongDragAndDrop, modifier: Modifier = Modifier)
         val songs = dragAndDrop.songs
         val target = dragAndDrop.hoveredTarget
         Surface(
-            color = if (target != null) SpotifyGreen else MaterialTheme.colorScheme.surfaceVariant,
+            color = if (target != null) AccentColor else MaterialTheme.colorScheme.surfaceVariant,
             contentColor = if (target != null) Color.White else MaterialTheme.colorScheme.onSurface,
             shape = RoundedCornerShape(4.dp),
             shadowElevation = 6.dp,

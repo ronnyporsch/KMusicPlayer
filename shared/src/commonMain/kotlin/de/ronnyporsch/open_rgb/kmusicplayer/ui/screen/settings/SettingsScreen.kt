@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ServerTypeSelector
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.urlPlaceholder
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifySurface
 import kotlin.math.roundToInt
@@ -117,7 +117,7 @@ fun SettingsScreen(
             if (state.reconnectSuccess) {
                 Text(
                     text = "Connected successfully",
-                    color = SpotifyGreen,
+                    color = AccentColor,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -128,7 +128,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .height(44.dp)
                     .clip(RoundedCornerShape(0.dp)),
-                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                 enabled = !state.isReconnecting,
             ) {
                 if (state.isReconnecting) {
@@ -179,8 +179,8 @@ fun SettingsScreen(
                         valueRange = 1f..12f,
                         steps = 10,
                         colors = SliderDefaults.colors(
-                            thumbColor = SpotifyGreen,
-                            activeTrackColor = SpotifyGreen,
+                            thumbColor = AccentColor,
+                            activeTrackColor = AccentColor,
                             inactiveTrackColor = SpotifySurface,
                         ),
                     )
@@ -213,7 +213,7 @@ private fun SectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        color = SpotifyGreen,
+        color = AccentColor,
         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
     )
 }
@@ -239,8 +239,8 @@ private fun SettingsSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = SpotifyGreen,
-                checkedTrackColor = SpotifyGreen.copy(alpha = 0.4f),
+                checkedThumbColor = AccentColor,
+                checkedTrackColor = AccentColor.copy(alpha = 0.4f),
             ),
         )
     }
@@ -248,7 +248,7 @@ private fun SettingsSwitch(
 
 @Composable
 private fun settingsTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = SpotifyGreen,
-    cursorColor = SpotifyGreen,
-    focusedLabelColor = SpotifyGreen,
+    focusedBorderColor = AccentColor,
+    cursorColor = AccentColor,
+    focusedLabelColor = AccentColor,
 )

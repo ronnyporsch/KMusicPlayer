@@ -7,7 +7,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.canAcceptUntrustedCertificates
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 /** Lets the user accept a self-signed server certificate. Not shown in browsers, which decide that themselves. */
@@ -32,8 +32,8 @@ fun UntrustedCertificateSwitch(checked: Boolean, onCheckedChange: (Boolean) -> U
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = SpotifyGreen,
-                checkedTrackColor = SpotifyGreen.copy(alpha = 0.4f),
+                checkedThumbColor = AccentColor,
+                checkedTrackColor = AccentColor.copy(alpha = 0.4f),
             ),
         )
     }

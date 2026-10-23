@@ -9,7 +9,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val SpotifyGreen = Color(0xFF1DB954)
+val AccentColor = Color(0xFFFF00FF)
 val SpotifyBlack = Color(0xFF121212)
 val SpotifyDarkGray = Color(0xFF181818)
 val SpotifySurface = Color(0xFF282828)
@@ -17,9 +17,9 @@ val SpotifyLightGray = Color(0xFFB3B3B3)
 val SpotifyWhite = Color(0xFFFFFFFF)
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SpotifyGreen,
+    primary = AccentColor,
     onPrimary = SpotifyBlack,
-    secondary = SpotifyGreen,
+    secondary = AccentColor,
     onSecondary = SpotifyBlack,
     background = SpotifyBlack,
     onBackground = SpotifyWhite,

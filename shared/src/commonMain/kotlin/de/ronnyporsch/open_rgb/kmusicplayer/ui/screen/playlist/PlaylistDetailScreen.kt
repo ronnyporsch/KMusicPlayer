@@ -1,7 +1,6 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.screen.playlist
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -13,15 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.getPlatform
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
-import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.formatDuration
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.CoverArtUrlProvider
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.LocalCoverArtUrlProvider
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ClickableArtistText
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CoverArtImage
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.CollapsingTopBar
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.collapsingHeader
@@ -31,7 +25,7 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.rememberCollapsingHead
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongRow
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuSongs
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.contextMenuIndices
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 @Composable
 fun PlaylistDetailScreen(
@@ -59,7 +53,7 @@ fun PlaylistDetailScreen(
 
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = SpotifyGreen)
+                CircularProgressIndicator(color = AccentColor)
             }
         } else {
             val playlist = state.playlist ?: return
@@ -134,7 +128,7 @@ fun PlaylistDetailScreen(
                         Button(
                             onClick = { viewModel.onEvent(PlaylistDetailEvent.PlayAll) },
                             modifier = Modifier.weight(1f).height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                             shape = RoundedCornerShape(0.dp),
                         ) {
                             Text("\u25B6  Play", fontWeight = FontWeight.Bold)

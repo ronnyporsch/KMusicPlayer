@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 /**
  * Shows the artists credited by the server's tags, each one clickable.
@@ -41,7 +41,7 @@ fun ClickableArtistText(
         Text(
             text = "$prefix$name$suffix",
             style = style,
-            color = SpotifyGreen,
+            color = AccentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = modifier.clickable { onArtistClick(name) },
@@ -60,7 +60,7 @@ fun ClickableArtistText(
             Text(
                 text = artist.name,
                 style = style,
-                color = SpotifyGreen,
+                color = AccentColor,
                 maxLines = 1,
                 modifier = Modifier.clickable { onArtistClick(artist.name) },
             )

@@ -1,6 +1,5 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.ui.components
 
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -13,7 +12,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.Favorites
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyLightGray
 
 val LocalFavorites = staticCompositionLocalOf<Favorites?> { null }
@@ -34,7 +33,7 @@ fun FavoriteButton(
         onClick = { favorites.toggle(kind, id) },
         icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
         contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
-        tint = if (isFavorite) SpotifyGreen else SpotifyLightGray,
+        tint = if (isFavorite) AccentColor else SpotifyLightGray,
         modifier = modifier,
         iconSize = iconSize,
     )

@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.*
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 /** Mobile: the favorite songs on their own screen; tapping a song plays the list from there. */
 @Composable
@@ -67,7 +67,7 @@ const val FAVORITE_SONGS_TITLE = "Favorite songs"
 @Composable
 fun FavoritesImage(modifier: Modifier = Modifier) {
     BoxWithConstraints(
-        modifier = modifier.background(Brush.linearGradient(listOf(SpotifyGreen, Color(0xFF0B4F2A)))),
+        modifier = modifier.background(Brush.linearGradient(listOf(AccentColor, Color(0xFF4F0B4F)))),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -162,7 +162,7 @@ fun FavoriteSongsList(
                     Button(
                         onClick = onPlayAll,
                         modifier = Modifier.weight(1f).height(44.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                         shape = RoundedCornerShape(0.dp),
                     ) {
                         Text("▶  Play", fontWeight = FontWeight.Bold)

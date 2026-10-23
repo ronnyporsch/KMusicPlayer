@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.ServerTypeSelector
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.urlPlaceholder
-import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.AccentColor
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel) {
@@ -40,7 +40,7 @@ fun LoginScreen(viewModel: LoginViewModel) {
             Text(
                 text = "\u266B",
                 fontSize = 48.sp,
-                color = SpotifyGreen,
+                color = AccentColor,
             )
 
             Text(
@@ -70,9 +70,9 @@ fun LoginScreen(viewModel: LoginViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SpotifyGreen,
-                    cursorColor = SpotifyGreen,
-                    focusedLabelColor = SpotifyGreen,
+                    focusedBorderColor = AccentColor,
+                    cursorColor = AccentColor,
+                    focusedLabelColor = AccentColor,
                 ),
                 shape = RoundedCornerShape(0.dp),
             )
@@ -84,9 +84,9 @@ fun LoginScreen(viewModel: LoginViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SpotifyGreen,
-                    cursorColor = SpotifyGreen,
-                    focusedLabelColor = SpotifyGreen,
+                    focusedBorderColor = AccentColor,
+                    cursorColor = AccentColor,
+                    focusedLabelColor = AccentColor,
                 ),
                 shape = RoundedCornerShape(0.dp),
             )
@@ -100,9 +100,9 @@ fun LoginScreen(viewModel: LoginViewModel) {
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SpotifyGreen,
-                    cursorColor = SpotifyGreen,
-                    focusedLabelColor = SpotifyGreen,
+                    focusedBorderColor = AccentColor,
+                    cursorColor = AccentColor,
+                    focusedLabelColor = AccentColor,
                 ),
                 shape = RoundedCornerShape(0.dp),
             )
@@ -129,7 +129,7 @@ fun LoginScreen(viewModel: LoginViewModel) {
                     .height(48.dp)
                     .clip(RoundedCornerShape(0.dp)),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SpotifyGreen,
+                    containerColor = AccentColor,
                 ),
                 enabled = !state.isLoading,
             ) {
