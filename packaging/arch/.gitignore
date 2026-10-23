@@ -1,0 +1,5 @@
+*
+!.gitignore
+!PKGBUILD
+!kmusicplayer.desktop
+!kmusicplayer.sh

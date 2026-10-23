@@ -26,6 +26,8 @@ compose.desktop {
             packageName = "de.ronnyporsch.open_rgb.kmusicplayer"
             // Installers only accept <major>.<minor>.<patch>
             packageVersion = appVersion.substringBefore('-')
+            // From suggestRuntimeModules; the bundled JRE only contains these plus the Compose defaults
+            modules("java.instrument", "java.management", "java.prefs", "jdk.security.auth", "jdk.unsupported")
 
             linux { iconFile.set(project.file("icons/icon.png")) }
             windows { iconFile.set(project.file("icons/icon.ico")) }

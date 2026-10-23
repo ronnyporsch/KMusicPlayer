@@ -29,6 +29,12 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
     - Wasm target (faster, modern browsers): `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
     - JS target (slower, supports older browsers): `./gradlew :webApp:jsBrowserDevelopmentRun`
 
+### Installing on Arch Linux
+
+`cd packaging/arch && makepkg -si` builds the desktop app from the committed `HEAD` of this repository
+and installs it as a jar running on the system Java (`java-runtime>=21`), with a `kmusicplayer` command
+and a menu entry. Install `vlc` to play YouTube videos.
+
 ### Running tests
 
 Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
