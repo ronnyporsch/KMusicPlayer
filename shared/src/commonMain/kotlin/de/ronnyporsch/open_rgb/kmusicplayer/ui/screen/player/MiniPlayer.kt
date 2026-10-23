@@ -104,6 +104,8 @@ fun MiniPlayer(
                     viewModel.onEvent(PlayerEvent.SeekTo((it * playback.durationMs).toLong()))
                 },
                 modifier = Modifier.fillMaxWidth().height(4.dp),
+                // Mobile: taps open the big player instead of seeking
+                enabled = !isMobile,
                 thumb = {
                     // Empty thumb to keep it looking like a progress bar
                 },
@@ -155,16 +157,16 @@ fun MiniPlayer(
                 Spacer(Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f, fill = false)) {
+                    // Mobile: no link, so taps fall through and open the big player
                     HoverLinkText(
                         text = song.title,
-                        onClick = song.albumId.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
+                        onClick = song.albumId.takeIf { it.isNotBlank() && !isMobile }?.let { { onAlbumClick(it) } },
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     Spacer(Modifier.height(2.dp))
                     if (isMobile && state.remoteDevice != null) {
                         PlayingOnText(state)
                     } else if (isMobile) {
-                        // Taps on the mini player open the big player; artists aren't links here
                         Text(
                             text = song.artists.joinToString { it.name }.ifEmpty { song.artist },
                             style = MaterialTheme.typography.bodySmall,
@@ -181,7 +183,8 @@ fun MiniPlayer(
                     }
                 }
 
-                FavoriteButton(FavoriteKind.Song, song.id, iconSize = 20.dp)
+                // Mobile: the big player has it
+                if (!isMobile) FavoriteButton(FavoriteKind.Song, song.id, iconSize = 20.dp)
             }
 
             Row(

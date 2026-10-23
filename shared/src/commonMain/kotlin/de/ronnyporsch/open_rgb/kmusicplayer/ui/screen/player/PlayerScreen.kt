@@ -117,7 +117,6 @@ fun PlayerScreen(
                 }
                 DevicesButton(state, viewModel::onEvent, tint = MaterialTheme.colorScheme.onBackground)
                 QueueButtons(openTab = null, onClick = onQueueClick)
-                FavoriteButton(FavoriteKind.Song, song?.id)
             }
         }
         PlayingOnText(state)
@@ -168,40 +167,45 @@ fun PlayerScreen(
             Spacer(Modifier.weight(0.5f))
         }
 
-        Box(Modifier.fillMaxWidth()) {
-            HoverLinkText(
-                text = song?.title ?: "Not Playing",
-                onClick = song?.albumId?.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-
-        if (song != null) {
-            Box(Modifier.fillMaxWidth()) {
-                ClickableArtistText(
-                    artists = song.artists,
-                    fallback = song.artist,
-                    onArtistClick = onArtistClick,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-            if (song.album.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
                 Box(Modifier.fillMaxWidth()) {
                     HoverLinkText(
-                        text = song.album,
-                        onClick = song.albumId.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = song?.title ?: "Not Playing",
+                        onClick = song?.albumId?.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                if (song != null) {
+                    Box(Modifier.fillMaxWidth()) {
+                        ClickableArtistText(
+                            artists = song.artists,
+                            fallback = song.artist,
+                            onArtistClick = onArtistClick,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                    if (song.album.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Box(Modifier.fillMaxWidth()) {
+                            HoverLinkText(
+                                text = song.album,
+                                onClick = song.albumId.takeIf { it.isNotBlank() }?.let { { onAlbumClick(it) } },
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
-        } else {
-            Text(
-                text = "",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            FavoriteButton(FavoriteKind.Song, song?.id, iconSize = 28.dp)
         }
 
         Spacer(Modifier.height(24.dp))
