@@ -17,7 +17,7 @@ class JellyfinMusicRepository(
     override suspend fun ping(): Boolean = api.ping()
 
     override suspend fun getArtists(): Result<List<Artist>> = runCatching {
-        api.getAlbumArtists(mapOf("sortBy" to "SortName", "fields" to "ChildCount", "enableUserData" to false))
+        api.getAlbumArtists(mapOf("sortBy" to "SortName", "fields" to "ItemCounts", "enableUserData" to false))
             .items.map { it.toArtist() }
     }
 
@@ -95,7 +95,7 @@ class JellyfinMusicRepository(
 
     override suspend fun findArtistByName(name: String): Result<Artist?> = runCatching {
         if (name.isBlank()) return@runCatching null
-        api.getArtists(mapOf("searchTerm" to name, "limit" to 20, "fields" to "ChildCount", "enableUserData" to false))
+        api.getArtists(mapOf("searchTerm" to name, "limit" to 20, "fields" to "ItemCounts", "enableUserData" to false))
             .items.firstOrNull { it.name.equals(name, ignoreCase = true) }?.toArtist()
     }
 
@@ -120,7 +120,7 @@ class JellyfinMusicRepository(
     override suspend fun search(query: String): Result<SearchResults> = runCatching {
         coroutineScope {
             val artists = async {
-                api.getArtists(mapOf("searchTerm" to query, "limit" to 10, "fields" to "ChildCount", "enableUserData" to false))
+                api.getArtists(mapOf("searchTerm" to query, "limit" to 10, "fields" to "ItemCounts", "enableUserData" to false))
                     .items.map { it.toArtist() }
             }
             val albums = async { albums("searchTerm" to query, "limit" to 10, "sortBy" to "SortName") }
@@ -160,7 +160,7 @@ class JellyfinMusicRepository(
                 "recursive" to true,
                 "isFavorite" to true,
                 "sortBy" to "SortName",
-                "fields" to "Genres,ChildCount",
+                "fields" to "Genres,ChildCount,ItemCounts",
                 "enableUserData" to false,
             )
         ).items
@@ -226,7 +226,8 @@ private fun NameIdPairDto.toArtist() = Artist(id = id, name = name)
 private fun BaseItemDto.toArtist() = Artist(
     id = id,
     name = name,
-    albumCount = albumCount ?: childCount ?: 0,
+    // Needs the ItemCounts field; an artist's ChildCount counts the entries of its folder, not its albums
+    albumCount = albumCount ?: 0,
     coverArtId = id.takeIf { "Primary" in imageTags },
 )
 
