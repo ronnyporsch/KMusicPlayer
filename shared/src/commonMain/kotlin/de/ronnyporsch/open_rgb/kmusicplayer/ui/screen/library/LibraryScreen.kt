@@ -63,7 +63,7 @@ fun LibraryScreen(
     ) {
         if (state.isOffline) {
             Text(
-                text = "Can't reach the server. Showing the playlists stored on this device.",
+                text = "Can't reach the server. Showing what is stored on this device.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SpotifyLightGray,
                 modifier = if (isMobile) Modifier.padding(16.dp) else Modifier.padding(bottom = 16.dp),

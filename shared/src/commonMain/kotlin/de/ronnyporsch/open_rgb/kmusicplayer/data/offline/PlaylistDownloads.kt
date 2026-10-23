@@ -2,6 +2,7 @@ package de.ronnyporsch.open_rgb.kmusicplayer.data.offline
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.SongFileStore
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.readAppFile
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.writeAppFile
@@ -14,6 +15,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 private data class DownloadedPlaylist(val server: String, val playlist: Playlist)
 
+@Serializable
+private data class DownloadedSong(val server: String, val song: Song)
+
 data class PlaylistDownloadStatus(
     val downloadedSongs: Int,
     val totalSongs: Int,
@@ -24,8 +28,9 @@ data class PlaylistDownloadStatus(
 }
 
 /**
- * Playlists the user downloaded for offline playback. Their songs are downloaded in original quality into [files] and
- * kept in sync with the server: songs added to a playlist get downloaded, removed ones deleted.
+ * Playlists and songs the user downloaded for offline playback. Their songs are downloaded in original quality into
+ * [files]; playlists are kept in sync with the server: songs added to a playlist get downloaded, removed ones deleted.
+ * A song's file stays as long as a downloaded playlist contains it or it got downloaded on its own.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaylistDownloads(
@@ -40,6 +45,9 @@ class PlaylistDownloads(
     private val dispatcher = Dispatchers.Default.limitedParallelism(1)
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var entries: List<DownloadedPlaylist>? = null
+    private var songEntries: List<DownloadedSong>? = null
+    /** The single songs changed since [syncSongs]' job read them. */
+    private var songsChanged = false
     private val jobs = mutableMapOf<String, Job>()
 
     private val _status = MutableStateFlow<Map<String, PlaylistDownloadStatus>>(emptyMap())
@@ -47,8 +55,21 @@ class PlaylistDownloads(
     val status: StateFlow<Map<String, PlaylistDownloadStatus>> = _status.asStateFlow()
 
     private val _downloadedSongIds = MutableStateFlow<Set<String>>(emptySet())
-    /** The songs of the downloaded playlists of the current server whose files are on the device. */
+    /** The songs of the current server whose files are on the device. */
     val downloadedSongIds: StateFlow<Set<String>> = _downloadedSongIds.asStateFlow()
+
+    private val _queuedSongIds = MutableStateFlow<Set<String>>(emptySet())
+    /** Songs of the current server waiting to be downloaded by a running sync. */
+    val queuedSongIds: StateFlow<Set<String>> = _queuedSongIds.asStateFlow()
+
+    private val _downloadingSongIds = MutableStateFlow<Set<String>>(emptySet())
+    /** Songs whose files are being downloaded right now. */
+    val downloadingSongIds: StateFlow<Set<String>> = _downloadingSongIds.asStateFlow()
+    private val transferring = mutableSetOf<String>()
+
+    private val _singleSongIds = MutableStateFlow<Set<String>>(emptySet())
+    /** The songs of the current server that got downloaded on their own, whether their files are there yet or not. */
+    val singleSongIds: StateFlow<Set<String>> = _singleSongIds.asStateFlow()
 
     init {
         if (files != null) scope.launch { publish() }
@@ -78,12 +99,40 @@ class PlaylistDownloads(
         }
     }
 
+    /** Downloads [songs] on their own and keeps them until [removeSongs]. */
+    fun downloadSongs(songs: List<Song>) {
+        if (files == null || songs.isEmpty()) return
+        scope.launch {
+            val server = serverKey()
+            val known = loadSongs().filter { it.server == server }.mapTo(mutableSetOf()) { it.song.id }
+            val new = songs.distinctBy { it.id }.filterNot { it.id in known }
+            if (new.isNotEmpty()) saveSongs(loadSongs() + new.map { DownloadedSong(server, it) })
+            syncSongs(server)
+        }
+    }
+
+    /** Removes the downloads of [songIds] made by [downloadSongs]; files that downloaded playlists need stay. */
+    fun removeSongs(songIds: Collection<String>) {
+        if (files == null) return
+        scope.launch {
+            val server = serverKey()
+            val removed = loadSongs().filter { it.server == server && it.song.id in songIds }
+            if (removed.isEmpty()) return@launch
+            // A running download of one of them must not write its file after the deletion
+            jobs.remove(songsKey(server))?.cancelAndJoin()
+            saveSongs(loadSongs() - removed.toSet())
+            deleteUnused(removed.map { it.song.id })
+            syncSongs(server)
+        }
+    }
+
     /** Resumes unfinished downloads and syncs all downloaded playlists of the current server, e.g. after connecting. */
     fun syncAll() {
         if (files == null) return
         scope.launch {
             val server = serverKey()
             load().filter { it.server == server }.forEach { sync(server, it.playlist.id) }
+            syncSongs(server)
         }
     }
 
@@ -109,6 +158,16 @@ class PlaylistDownloads(
         load().filter { it.server == server }.map { it.playlist }
     }
 
+    /** The songs of the current server whose files are on the device, with what is known about them. */
+    suspend fun downloadedSongs(): List<Song> = withContext(dispatcher) {
+        val files = files ?: return@withContext emptyList()
+        val server = serverKey()
+        (loadSongs().filter { it.server == server }.map { it.song } +
+            load().filter { it.server == server }.flatMap { it.playlist.songs })
+            .distinctBy { it.id }
+            .filter { files.uriOf(it.id) != null }
+    }
+
     private suspend fun sync(server: String, playlistId: String) {
         val files = files ?: return
         val key = key(server, playlistId)
@@ -122,19 +181,7 @@ class PlaylistDownloads(
                 deleteUnused(entry.playlist.songs.map { it.id } - fresh.songs.mapTo(mutableSetOf()) { it.id })
             }
             publish()
-            val songs = entry(server, playlistId)?.playlist?.songs.orEmpty().distinctBy { it.id }
-            for (song in songs) {
-                if (files.uriOf(song.id) != null) continue
-                if (serverKey() != server) break
-                try {
-                    files.download(song.id, repository.getDownloadUrl(song.id))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    // Stays missing; the next sync tries again
-                }
-                publish()
-            }
+            downloadMissing(files, server, entry(server, playlistId)?.playlist?.songs.orEmpty())
         }.also { job ->
             job.invokeOnCompletion {
                 scope.launch {
@@ -146,10 +193,53 @@ class PlaylistDownloads(
         publish()
     }
 
-    /** Deletes the files of [songIds] that no downloaded playlist (of any server) contains anymore. */
+    /** Downloads the missing files of the songs downloaded on their own. */
+    private fun syncSongs(server: String) {
+        val files = files ?: return
+        val key = songsKey(server)
+        songsChanged = true
+        // A running job picks up the change once it is through its current list
+        if (jobs[key]?.isActive == true) return
+        jobs[key] = scope.launch {
+            while (songsChanged && serverKey() == server) {
+                songsChanged = false
+                downloadMissing(files, server, loadSongs().filter { it.server == server }.map { it.song })
+            }
+        }.also { job ->
+            job.invokeOnCompletion {
+                scope.launch {
+                    if (jobs[key] === job) jobs.remove(key)
+                    publish()
+                }
+            }
+        }
+        scope.launch { publish() }
+    }
+
+    private suspend fun downloadMissing(files: SongFileStore, server: String, songs: List<Song>) {
+        for (song in songs.distinctBy { it.id }) {
+            if (files.uriOf(song.id) != null) continue
+            if (serverKey() != server) break
+            transferring += song.id
+            publish()
+            try {
+                files.download(song.id, repository.getDownloadUrl(song.id))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Stays missing; the next sync tries again
+            } finally {
+                transferring -= song.id
+            }
+            publish()
+        }
+    }
+
+    /** Deletes the files of [songIds] that neither a downloaded playlist nor a single download (of any server) needs anymore. */
     private suspend fun deleteUnused(songIds: Collection<String>) {
         val files = files ?: return
         val used = load().flatMapTo(mutableSetOf()) { entry -> entry.playlist.songs.map { it.id } }
+        loadSongs().mapTo(used) { it.song.id }
         songIds.filterNot { it in used }.forEach { files.delete(it) }
     }
 
@@ -157,8 +247,15 @@ class PlaylistDownloads(
         val files = files ?: return
         val server = serverKey()
         val entries = load().filter { it.server == server }
-        _downloadedSongIds.value = entries.flatMapTo(mutableSetOf()) { entry ->
-            entry.playlist.songs.mapNotNull { song -> song.id.takeIf { files.uriOf(it) != null } }
+        val singleSongs = loadSongs().filter { it.server == server }
+        _singleSongIds.value = singleSongs.mapTo(mutableSetOf()) { it.song.id }
+        _downloadedSongIds.value = (entries.flatMap { it.playlist.songs } + singleSongs.map { it.song })
+            .mapNotNullTo(mutableSetOf()) { song -> song.id.takeIf { files.uriOf(it) != null } }
+        val pending = entries.filter { jobs[key(server, it.playlist.id)]?.isActive == true }.flatMap { it.playlist.songs } +
+            (if (jobs[songsKey(server)]?.isActive == true) singleSongs.map { it.song } else emptyList())
+        _downloadingSongIds.value = transferring.toSet()
+        _queuedSongIds.value = pending.mapNotNullTo(mutableSetOf()) { song ->
+            song.id.takeIf { files.uriOf(it) == null && it !in transferring }
         }
         _status.value = entries
             .associate { entry ->
@@ -186,9 +283,24 @@ class PlaylistDownloads(
         writeAppFile(FILE_NAME, offlineJson.encodeToString(new))
     }
 
+    private suspend fun loadSongs(): List<DownloadedSong> = songEntries ?: (
+        readAppFile(SONGS_FILE_NAME)?.let {
+            runCatching { offlineJson.decodeFromString<List<DownloadedSong>>(it) }.getOrNull()
+        } ?: emptyList()
+    ).also { songEntries = it }
+
+    private suspend fun saveSongs(new: List<DownloadedSong>) {
+        songEntries = new
+        writeAppFile(SONGS_FILE_NAME, offlineJson.encodeToString(new))
+    }
+
     private fun key(server: String, playlistId: String) = "$server\n$playlistId"
+
+    /** Key of the job downloading the single songs; playlist ids aren't empty, so it can't collide with [key]. */
+    private fun songsKey(server: String) = key(server, "")
 
     private companion object {
         const val FILE_NAME = "downloaded-playlists.json"
+        const val SONGS_FILE_NAME = "downloaded-songs.json"
     }
 }

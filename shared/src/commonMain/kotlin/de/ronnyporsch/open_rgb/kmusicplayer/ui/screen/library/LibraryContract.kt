@@ -31,7 +31,7 @@ data class LibraryState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),
-    /** The server isn't reachable; only the playlists stored on the device are shown. */
+    /** The server isn't reachable; only the playlists and songs stored on the device are shown. */
     val isOffline: Boolean = false,
     /** Whether playlists can be downloaded on this platform. */
     val canDownloadPlaylists: Boolean = false,

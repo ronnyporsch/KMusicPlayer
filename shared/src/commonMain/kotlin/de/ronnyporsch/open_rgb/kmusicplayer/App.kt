@@ -62,6 +62,9 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalStreamFormatLooku
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.description
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalDownloadedSongIds
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalSongDownloads
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.LocalPendingSongDownloads
+import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PendingSongDownloads
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragAndDrop
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.SongDragOverlay
 import de.ronnyporsch.open_rgb.kmusicplayer.ui.components.PlaylistEditor
@@ -216,6 +219,11 @@ fun App() {
     }
 
     val downloadedSongIds by connection.downloads.downloadedSongIds.collectAsState()
+    val queuedSongIds by connection.downloads.queuedSongIds.collectAsState()
+    val downloadingSongIds by connection.downloads.downloadingSongIds.collectAsState()
+    val pendingSongDownloads = remember(queuedSongIds, downloadingSongIds) {
+        PendingSongDownloads(queuedSongIds, downloadingSongIds)
+    }
 
     KMusicPlayerTheme {
         CompositionLocalProvider(
@@ -227,6 +235,8 @@ fun App() {
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
             LocalDownloadedSongIds provides downloadedSongIds,
+            LocalPendingSongDownloads provides pendingSongDownloads,
+            LocalSongDownloads provides connection.downloads.takeIf { it.isSupported },
         ) {
         Box(Modifier.fillMaxSize()) {
         val currentScreen by navigator.currentScreen.collectAsState()

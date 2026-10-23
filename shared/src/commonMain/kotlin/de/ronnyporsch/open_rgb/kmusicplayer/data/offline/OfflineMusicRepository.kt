@@ -1,7 +1,14 @@
 package de.ronnyporsch.open_rgb.kmusicplayer.data.offline
 
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
+import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.SearchResults
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Album
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Artist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.ArtistInfo
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.AudioStreamInfo
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Song
+import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.audioFormat
 import de.ronnyporsch.open_rgb.kmusicplayer.platform.SongFileStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -9,8 +16,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * [server], except that playlists come from [cache] and [downloads] while the server isn't reachable, and that
- * downloaded songs play from their [files].
+ * [server], except that while the server isn't reachable playlists come from [cache] and [downloads], and artists,
+ * albums and search results from the downloaded songs ([OfflineLibrary]); downloaded songs play from their [files].
  */
 class OfflineMusicRepository(
     private val server: MusicRepository,
@@ -39,6 +46,37 @@ class OfflineMusicRepository(
             .onSuccess { cache.putPlaylist(it) }
             .recoverOffline { downloads.playlist(playlistId) ?: cache.playlist(playlistId) }
 
+    override suspend fun getArtists(): Result<List<Artist>> =
+        server.getArtists().recoverOffline { library().artists.ifEmpty { null } }
+
+    override suspend fun getArtistAlbums(artistId: String): Result<List<Album>> =
+        server.getArtistAlbums(artistId).recoverOffline { library().albumsOf(artistId) }
+
+    override suspend fun getAppearsOnAlbums(artistName: String, ownAlbumIds: List<String>): Result<List<Album>> =
+        server.getAppearsOnAlbums(artistName, ownAlbumIds).recoverOffline { library().appearsOn(artistName, ownAlbumIds) }
+
+    override suspend fun getArtistInfo(artistId: String): Result<ArtistInfo> =
+        server.getArtistInfo(artistId).recoverOffline { ArtistInfo() }
+
+    override suspend fun getAlbum(albumId: String): Result<Album> =
+        server.getAlbum(albumId).recoverOffline { library().album(albumId) }
+
+    // Artists without an id are looked up by name again, so the songs crediting them get found
+    override suspend fun findArtistByName(name: String): Result<Artist?> =
+        server.findArtistByName(name).recoverOffline { library().artist(name)?.takeIf { it.id.isNotBlank() } }
+
+    override suspend fun findSongsByArtistName(name: String): Result<List<Song>> =
+        server.findSongsByArtistName(name).recoverOffline { library().songsOf(name, emptyList()) }
+
+    override suspend fun getSongsForArtist(artistName: String, albumIds: List<String>): Result<List<Song>> =
+        server.getSongsForArtist(artistName, albumIds).recoverOffline { library().songsOf(artistName, albumIds) }
+
+    override suspend fun search(query: String): Result<SearchResults> =
+        server.search(query).recoverOffline { library().search(query) }
+
+    override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> =
+        server.getAudioFormat(song).recoverOffline { song.audioFormat }
+
     override suspend fun createPlaylist(name: String, songIds: List<String>): Result<Playlist> =
         server.createPlaylist(name, songIds).onSuccess { _playlistChanges.emit(it.id) }
 
@@ -49,6 +87,8 @@ class OfflineMusicRepository(
         server.removeSongsFromPlaylist(playlistId, songIndices).onSuccess { changed(playlistId) }
 
     override fun getStreamUrl(songId: String): String = files?.uriOf(songId) ?: server.getStreamUrl(songId)
+
+    private suspend fun library() = OfflineLibrary(downloads.downloadedSongs())
 
     private suspend fun changed(playlistId: String) {
         downloads.onPlaylistChanged(playlistId)

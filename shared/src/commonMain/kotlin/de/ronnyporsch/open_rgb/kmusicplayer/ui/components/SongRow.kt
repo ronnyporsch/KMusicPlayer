@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,6 +54,13 @@ import de.ronnyporsch.open_rgb.kmusicplayer.ui.theme.SpotifyGreen
 
 /** Ids of the songs that are downloaded on this device; [SongRow] marks them. */
 val LocalDownloadedSongIds = compositionLocalOf<Set<String>> { emptySet() }
+
+/** Songs waiting for their download and those being downloaded right now; [SongRow] marks them. */
+data class PendingSongDownloads(val queued: Set<String> = emptySet(), val downloading: Set<String> = emptySet()) {
+    operator fun contains(songId: String) = songId in queued || songId in downloading
+}
+
+val LocalPendingSongDownloads = compositionLocalOf { PendingSongDownloads() }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -90,7 +99,8 @@ fun SongRow(
     val platform = getPlatform()
     val density = LocalDensity.current
 
-    val hasContextMenu = LocalPlaylistEditor.current != null || LocalAddToQueue.current != null || onRemoveFromPlaylist != null
+    val hasContextMenu = LocalPlaylistEditor.current != null || LocalAddToQueue.current != null ||
+        onRemoveFromPlaylist != null || LocalSongDownloads.current != null
     // YouTube Music results aren't in the library, so they can't be dropped onto playlists
     val isDraggable = LocalPlaylistEditor.current != null && !song.isYouTube
     var menuSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -220,6 +230,19 @@ fun SongRow(
                             Icons.Default.DownloadForOffline,
                             contentDescription = "Downloaded",
                             tint = SpotifyGreen,
+                            modifier = Modifier.padding(end = 4.dp).size(14.dp),
+                        )
+                    } else if (song.id in LocalPendingSongDownloads.current.downloading) {
+                        CircularProgressIndicator(
+                            color = SpotifyGreen,
+                            strokeWidth = 1.5.dp,
+                            modifier = Modifier.padding(end = 4.dp).size(12.dp),
+                        )
+                    } else if (song.id in LocalPendingSongDownloads.current.queued) {
+                        Icon(
+                            Icons.Default.Downloading,
+                            contentDescription = "Waiting for download",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(end = 4.dp).size(14.dp),
                         )
                     }

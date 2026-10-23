@@ -48,6 +48,12 @@ class LibraryViewModel(
         }
         if (downloads != null) {
             launch { downloads.status.collect { setState { copy(playlistDownloads = it) } } }
+            // Offline the artists are those of the downloaded songs, e.g. fewer after removing a download
+            launch {
+                downloads.downloadedSongIds.collect {
+                    if (currentState.isOffline) repository.getArtists().onSuccess { setState { copy(artists = it) } }
+                }
+            }
         }
         if (favorites != null) {
             // Unmarked favorites disappear right away, before the server confirmed
@@ -310,15 +316,17 @@ class LibraryViewModel(
         }
     }
 
-    /** Shows the playlists stored on the device, as long as the server isn't reachable. */
+    /** Shows the playlists and downloaded songs stored on the device, as long as the server isn't reachable. */
     private fun loadOffline() {
         launch {
             val playlists = repository.getPlaylists().getOrDefault(emptyList())
+            val artists = repository.getArtists().getOrDefault(emptyList())
             setState {
                 copy(
                     isLoading = false,
                     isOffline = true,
                     playlists = playlists,
+                    artists = artists,
                     selectedSidebarTab = LibrarySidebarTab.Playlists,
                     activeDetailView = LibraryDetailView.Playlists,
                 )

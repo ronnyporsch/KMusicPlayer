@@ -7,6 +7,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import de.ronnyporsch.open_rgb.kmusicplayer.data.offline.PlaylistDownloads
 import de.ronnyporsch.open_rgb.kmusicplayer.data.repository.MusicRepository
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.FavoriteKind
 import de.ronnyporsch.open_rgb.kmusicplayer.domain.model.Playlist
@@ -82,6 +85,9 @@ val LocalAddToQueue = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
 /** Looks up codec and bitrate of YouTube Music songs' streams, from the song context menu. */
 val LocalStreamFormatLookup = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
 
+/** Downloads single songs from the song context menu; null where songs can't be downloaded. */
+val LocalSongDownloads = staticCompositionLocalOf<PlaylistDownloads?> { null }
+
 fun Set<String>.toggled(songId: String): Set<String> = if (songId in this) this - songId else this + songId
 
 /** The songs a context menu on [song] acts on: the selection if [song] is part of it, otherwise only [song]. */
@@ -104,7 +110,8 @@ fun SongContextMenu(
 ) {
     val editor = LocalPlaylistEditor.current
     val addToQueue = LocalAddToQueue.current
-    if (editor == null && addToQueue == null && onRemoveFromPlaylist == null) return
+    val songDownloads = LocalSongDownloads.current
+    if (editor == null && addToQueue == null && onRemoveFromPlaylist == null && songDownloads == null) return
     // YouTube Music results aren't in the library, so they can't be added to playlists
     val canAddToPlaylist = editor != null && songs.none { it.isYouTube }
     var showPlaylists by remember { mutableStateOf(false) }
@@ -115,6 +122,9 @@ fun SongContextMenu(
     val favorites = LocalFavorites.current
     val streamFormatLookup = LocalStreamFormatLookup.current
     val favoriteIds by (favorites?.ids ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
+    val downloadedSongIds = LocalDownloadedSongIds.current
+    val pendingDownloads = LocalPendingSongDownloads.current
+    val singleDownloadIds by (songDownloads?.singleSongIds ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
 
     LaunchedEffect(expanded) {
         if (!expanded) showPlaylists = false
@@ -167,6 +177,34 @@ fun SongContextMenu(
                         showPlaylists = true
                     },
                 )
+            }
+            if (songDownloads != null) {
+                // YouTube Music results aren't in the library; they get downloaded to the server instead
+                val downloadable = songs.filterNot { it.isYouTube }
+                val missing = downloadable.filter {
+                    it.id !in downloadedSongIds && it.id !in singleDownloadIds && it.id !in pendingDownloads
+                }
+                // Songs downloaded with a playlist stay as long as the playlist is downloaded
+                val removable = downloadable.filter { it.id in singleDownloadIds }
+                if (missing.isNotEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Download") },
+                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                        onClick = {
+                            songDownloads.downloadSongs(missing)
+                            onDismiss()
+                        },
+                    )
+                } else if (removable.isNotEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Remove download") },
+                        leadingIcon = { Icon(Icons.Default.FileDownloadOff, contentDescription = null) },
+                        onClick = {
+                            songDownloads.removeSongs(removable.map { it.id })
+                            onDismiss()
+                        },
+                    )
+                }
             }
             if (streamFormatLookup != null && songs.any { it.isYouTube }) {
                 DropdownMenuItem(
