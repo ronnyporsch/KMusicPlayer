@@ -142,6 +142,18 @@ fun SettingsScreen(
                 }
             }
 
+            OutlinedButton(
+                onClick = { viewModel.onEvent(SettingsEvent.Logout) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                enabled = !state.isLoggingOut && !state.isReconnecting,
+            ) {
+                Text("Log out", fontWeight = FontWeight.Bold)
+            }
+
             Spacer(Modifier.height(16.dp))
 
             // Playback Section

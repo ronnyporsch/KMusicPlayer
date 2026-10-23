@@ -15,6 +15,7 @@ data class SettingsState(
     val serverYouTubeInfo: String? = null,
     val isReconnecting: Boolean = false,
     val reconnectSuccess: Boolean = false,
+    val isLoggingOut: Boolean = false,
     val error: String? = null,
 )
 
@@ -28,8 +29,10 @@ sealed class SettingsEvent {
     data class CrossfadeToggled(val enabled: Boolean) : SettingsEvent()
     data class CrossfadeDurationChanged(val seconds: Int) : SettingsEvent()
     data object Reconnect : SettingsEvent()
+    data object Logout : SettingsEvent()
 }
 
 sealed class SettingsEffect {
     data class ShowMessage(val message: String) : SettingsEffect()
+    data object LoggedOut : SettingsEffect()
 }

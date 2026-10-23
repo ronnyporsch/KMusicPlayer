@@ -123,6 +123,23 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         downloads.syncAll()
     }
 
+    /** Ends the session with the server and forgets the saved password, so the next start asks for the login. */
+    suspend fun logout() {
+        if (jellyfinApi.isConfigured) {
+            // Still log out locally if the server can't be reached
+            try {
+                jellyfinApi.logout()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
+        }
+        subsonicApi.reset()
+        _serverType.value = null
+        _plugin.value = null
+        settingsHolder.update { copy(password = "") }
+    }
+
     /** Re-reads what the KMusicPlayer Jellyfin plugin offers, e.g. after an admin changed its settings. */
     suspend fun refreshPlugin() {
         _plugin.value = if (active === jellyfin) {

@@ -31,6 +31,10 @@ class SubsonicApiService {
         config = serverConfig
     }
 
+    fun reset() {
+        config = null
+    }
+
     val isConfigured: Boolean get() = config != null
 
     private fun baseUrl(): String {

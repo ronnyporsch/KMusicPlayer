@@ -81,6 +81,15 @@ class JellyfinApiService {
         return JellyfinSession(url, result.user.id, result.accessToken, deviceId).also { session = it }
     }
 
+    /** Ends the session on the server, which revokes its access token; forgets it locally even if that fails. */
+    suspend fun logout() {
+        try {
+            client.post("${baseUrl()}/Sessions/Logout") { authorize() }.ensureSuccess()
+        } finally {
+            session = null
+        }
+    }
+
     suspend fun ping(): Boolean = try {
         client.get("${baseUrl()}/System/Info") { authorize() }.status.isSuccess()
     } catch (e: Exception) {

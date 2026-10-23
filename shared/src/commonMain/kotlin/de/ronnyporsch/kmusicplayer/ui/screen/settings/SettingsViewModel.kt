@@ -68,6 +68,16 @@ class SettingsViewModel(
                 updatePlaybackSettings()
             }
             is SettingsEvent.Reconnect -> reconnect()
+            is SettingsEvent.Logout -> logout()
+        }
+    }
+
+    private fun logout() {
+        if (currentState.isLoggingOut) return
+        setState { copy(isLoggingOut = true) }
+        launch {
+            connection.logout()
+            emitEffect(SettingsEffect.LoggedOut)
         }
     }
 

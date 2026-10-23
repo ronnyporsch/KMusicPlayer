@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
@@ -104,11 +105,12 @@ class RemoteControl(private val connection: MusicServerConnection, scope: Corout
 
     init {
         scope.launch {
-            connection.connections.collectLatest { count ->
+            // Also stops on logout, which resets the server type
+            combine(connection.connections, connection.serverType, ::Pair).collectLatest { (count, serverType) ->
                 sessions.value = emptyMap()
                 peerStates.value = emptyMap()
                 followers.clear()
-                if (count > 0 && connection.serverType.value == ServerType.Jellyfin) {
+                if (count > 0 && serverType == ServerType.Jellyfin) {
                     coroutineScope {
                         launch { runSocket() }
                         launch { runReporting() }

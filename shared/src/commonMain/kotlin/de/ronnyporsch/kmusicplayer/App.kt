@@ -575,6 +575,17 @@ fun App() {
 
                     is Screen.Settings -> {
                         val vm = remember { SettingsViewModel(connection, settingsHolder) }
+                        LaunchedEffect(vm) {
+                            vm.effects.collectLatest { effect ->
+                                when (effect) {
+                                    SettingsEffect.LoggedOut -> {
+                                        playerViewModel.onEvent(PlayerEvent.Pause)
+                                        navigator.replaceAll(Screen.Login)
+                                    }
+                                    is SettingsEffect.ShowMessage -> {}
+                                }
+                            }
+                        }
                         SettingsScreen(vm) { navigator.pop() }
                     }
                 }
