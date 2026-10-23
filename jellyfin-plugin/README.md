@@ -80,7 +80,7 @@ Keep yt-dlp up to date (the bundled one updates itself), YouTube changes regular
 
 ### Cookies file with Docker
 
-Export your YouTube cookies in Netscape format (e.g. with a "cookies.txt" browser extension while signed in to
+Export the YouTube cookies in Netscape format (e.g. with a "cookies.txt" browser extension while signed in to
 music.youtube.com), mount the file and set *Cookies file* to the mount point:
 
 ```yaml
@@ -96,7 +96,7 @@ the original changes) and the mount can stay read-only.
 
 ### Firefox cookies with Docker
 
-The official Jellyfin image contains no browser, so mount your Firefox profile folder (read-only is enough, yt-dlp
+The official Jellyfin image contains no browser, so mount the Firefox profile folder (read-only is enough, yt-dlp
 copies the cookie database) and set *Browser profile* to the mount point:
 
 ```yaml

@@ -1,0 +1,73 @@
+# Developing KMusicPlayer
+
+KMusicPlayer is written in Kotlin with Compose Multiplatform; one codebase runs as an Android app, a desktop app
+(Linux, Windows, macOS) and a web app. The YouTube Music part is a Jellyfin plugin written in C#.
+
+## Requirements
+
+- JDK 21
+- Android SDK (compileSdk 36) for the Android app
+- .NET 10 SDK only for the [Jellyfin plugin](./jellyfin-plugin)
+
+## Running the apps
+
+Use the run configurations in the IDE's run widget, or these Gradle tasks:
+
+- Android app: `./gradlew :androidApp:assembleDebug`
+- Desktop app:
+    - Hot reload: `./gradlew :desktopApp:hotRun --auto`
+    - Standard run: `./gradlew :desktopApp:run`
+- Web app:
+    - Wasm target (faster, modern browsers): `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
+    - JS target (slower, supports older browsers): `./gradlew :webApp:jsBrowserDevelopmentRun`
+
+## Building packages
+
+- Linux: `./gradlew :desktopApp:packageDeb`
+- Windows: `./gradlew :desktopApp:packageMsi`
+- macOS: `./gradlew :desktopApp:packageDmg`
+- Runnable jar for the current OS: `./gradlew :desktopApp:packageUberJarForCurrentOS`
+- Android: `./gradlew :androidApp:assembleDebug`
+- Web: `./gradlew :webApp:wasmJsBrowserDistribution` (or `jsBrowserDistribution` for older browsers, or
+  `composeCompatibilityBrowserDistribution` for a build that falls back to JS where Wasm isn't supported)
+
+Desktop installers bundle a JRE and can only be built on the OS they're for. The output goes to
+`desktopApp/build/compose/`, `androidApp/build/outputs/apk/` and `webApp/build/dist/`.
+
+## Running tests
+
+Use the run button in the IDE's editor gutter, or these Gradle tasks:
+
+- Android tests: `./gradlew :shared:testAndroidHostTest`
+- Desktop tests: `./gradlew :shared:jvmTest`
+- Web tests:
+    - Wasm target: `./gradlew :shared:wasmJsTest`
+    - JS target: `./gradlew :shared:jsTest`
+
+## Project structure
+
+| Path | Contents |
+|---|---|
+| [`shared/`](./shared/src) | Almost all code: UI, view models, server clients, playback logic |
+| `shared/src/commonMain` | Code for all platforms (`data/` server APIs and repositories, `ui/` screens, `mvi/` view model base) |
+| `shared/src/jvmCommonMain` | Code shared by Android and desktop (OkHttp-based HTTP client) |
+| `shared/src/androidMain` | ExoPlayer playback, media session, offline song storage |
+| `shared/src/jvmMain` | Desktop audio (javax.sound with MP3/FLAC decoders), VLC video, MPRIS |
+| `shared/src/jsMain`, `wasmJsMain` | Browser audio/video through HTML media elements |
+| [`androidApp/`](./androidApp), [`desktopApp/`](./desktopApp), [`webApp/`](./webApp) | Thin entry points for each platform |
+| [`jellyfin-plugin/`](./jellyfin-plugin) | The Jellyfin plugin (C#) for YouTube Music |
+| [`packaging/`](./packaging) | Distribution packages (Arch Linux PKGBUILD) |
+
+Screens follow an MVI pattern: each screen has a contract (state, events, effects) and a view model based on
+`MviStore`. Platform differences (audio player, HTTP client, file storage, media controls) are `expect`/`actual`
+declarations in `shared/src/commonMain/.../platform/`.
+
+## Versions and releases
+
+Versions come from git tags:
+
+- Apps: the latest `vX.Y.Z` tag, overridable with `-PappVersion=X.Y.Z`. The Android `versionCode` is
+  `X*10000 + Y*100 + Z`.
+- Jellyfin plugin: the latest `plugin-vX.Y.Z` tag plus the number of commits since then. Pushing such a tag runs the
+  [release workflow](./.github/workflows/jellyfin-plugin.yml), which publishes the plugin to the plugin repository
+  (see the [plugin README](./jellyfin-plugin/README.md#releasing)).
