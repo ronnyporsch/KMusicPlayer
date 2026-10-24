@@ -1,22 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="24 24 60 60">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="46 46 420 420">
   <defs>
-    <linearGradient id="disc" x1="32" y1="28" x2="76" y2="80" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FF2DF1"/>
-      <stop offset="1" stop-color="#6A2BFF"/>
+    <radialGradient id="halo">
+      <stop offset="0" stop-color="#B794FF" stop-opacity="0"/>
+      <stop offset=".7" stop-color="#B794FF" stop-opacity=".12"/>
+      <stop offset=".88" stop-color="#B794FF" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#B794FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".45" stop-color="#C9B6FF"/>
+      <stop offset=".75" stop-color="#A57CFF"/>
+      <stop offset="1" stop-color="#E4D9FF"/>
     </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
   </defs>
-  <circle cx="54" cy="54" r="30" fill="url(#disc)"/>
-  <g fill="none" stroke="#000" stroke-opacity="0.22" stroke-width="1.2">
-    <circle cx="54" cy="54" r="26"/>
-    <circle cx="54" cy="54" r="21.5"/>
-    <circle cx="54" cy="54" r="17"/>
-  </g>
-  <path fill="none" stroke="#FFF" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round" d="M28.16,44.59 A27.5,27.5 0 0 1 44.59,28.16"/>
-  <g fill="#FFF">
-    <path d="M48.5,43 L68.5,38 L68.5,43.5 L48.5,48.5 Z"/>
-    <path d="M48.5,43 h3 v22 h-3 Z"/>
-    <path d="M65.5,38 h3 v22 h-3 Z"/>
-    <ellipse cx="45.5" cy="65.5" rx="6" ry="4.6" transform="rotate(-22 45.5 65.5)"/>
-    <ellipse cx="62.5" cy="60.5" rx="6" ry="4.6" transform="rotate(-22 62.5 60.5)"/>
-  </g>
+
+  <circle cx="256" cy="256" r="190" fill="url(#halo)"/>
+
+  <!-- Violet atmospheric glow -->
+  <circle cx="256" cy="256" r="142"
+          fill="none" stroke="#B794FF"
+          stroke-width="18" opacity=".75" filter="url(#glow)"/>
+
+  <!-- Cosmic ring -->
+  <circle cx="256" cy="256" r="142"
+          fill="none" stroke="url(#ring)" stroke-width="5"/>
+
+  <path d="M256 114 A142 142 0 0 1 398 256"
+        fill="none" stroke="#FFFFFF" stroke-width="2" opacity=".8"/>
+
+  <!-- Horizontal transmission -->
+  <path d="M46 256 H225 M287 256 H466"
+        fill="none" stroke="#B794FF" stroke-width="4"/>
+
+  <!-- Tuning point -->
+  <circle cx="256" cy="256" r="21"
+          fill="none" stroke="#D4C4FF" stroke-width="5"/>
+  <circle cx="256" cy="256" r="7" fill="#FFFFFF"/>
+
+  <!-- Signal markers -->
+  <circle cx="256" cy="114" r="3.5" fill="#FFFFFF"/>
+  <circle cx="398" cy="256" r="3" fill="#D4C4FF"/>
+  <circle cx="114" cy="256" r="3" fill="#D4C4FF"/>
 </svg>

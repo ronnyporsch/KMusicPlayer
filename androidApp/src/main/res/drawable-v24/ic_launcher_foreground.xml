@@ -1,31 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:aapt="http://schemas.android.com/aapt"
         android:width="108dp"
         android:height="108dp"
-        android:viewportWidth="108"
-        android:viewportHeight="108">
-    <!-- The record (background) fills the 72dp visible circle, so scale the 60dp-disc artwork to match -->
-    <group android:scaleX="1.2" android:scaleY="1.2" android:pivotX="54" android:pivotY="54">
-        <!-- Grooves -->
-        <path
-                android:pathData="M28,54a26,26 0,1 0,52 0a26,26 0,1 0,-52 0zM32.5,54a21.5,21.5 0,1 0,43 0a21.5,21.5 0,1 0,-43 0zM37,54a17,17 0,1 0,34 0a17,17 0,1 0,-34 0z"
-                android:strokeWidth="1.2"
-                android:strokeColor="#38000000"/>
-        <!-- Sheen -->
-        <path
-                android:pathData="M28.16,44.59A27.5,27.5 0,0 1,44.59 28.16"
-                android:strokeWidth="2"
-                android:strokeColor="#73FFFFFF"
-                android:strokeLineCap="round"/>
-        <!-- Note -->
-        <path
-                android:fillColor="#FFFFFF"
-                android:pathData="M48.5,43L68.5,38L68.5,43.5L48.5,48.5ZM48.5,43h3v22h-3ZM65.5,38h3v22h-3Z"/>
-        <group android:rotation="-22" android:pivotX="45.5" android:pivotY="65.5">
-            <path android:fillColor="#FFFFFF" android:pathData="M39.5,65.5a6,4.6 0,1 0,12 0a6,4.6 0,1 0,-12 0z"/>
-        </group>
-        <group android:rotation="-22" android:pivotX="62.5" android:pivotY="60.5">
-            <path android:fillColor="#FFFFFF" android:pathData="M56.5,60.5a6,4.6 0,1 0,12 0a6,4.6 0,1 0,-12 0z"/>
-        </group>
+        android:viewportWidth="630"
+        android:viewportHeight="630">
+    <!-- Artwork is drawn on a 512 canvas (see webApp favicon.svg); the larger viewport lets the transmission line end at the edge of the visible area -->
+    <group android:translateX="59" android:translateY="59">
+        <!-- Halo -->
+        <path android:pathData="M66,256a190,190 0,1 0,380 0a190,190 0,1 0,-380 0z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                        android:type="radial"
+                        android:centerX="256"
+                        android:centerY="256"
+                        android:gradientRadius="190">
+                    <item android:color="#00B794FF" android:offset="0.0"/>
+                    <item android:color="#1FB794FF" android:offset="0.7"/>
+                    <item android:color="#52B794FF" android:offset="0.88"/>
+                    <item android:color="#00B794FF" android:offset="1.0"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- Violet atmospheric glow; vector drawables can't blur, so it's stacked translucent strokes -->
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="64" android:strokeColor="#10B794FF"/>
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="44" android:strokeColor="#1CB794FF"/>
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="28" android:strokeColor="#2EB794FF"/>
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="16" android:strokeColor="#36B794FF"/>
+        <!-- Cosmic ring -->
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="5">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                        android:type="linear"
+                        android:startX="114"
+                        android:startY="114"
+                        android:endX="398"
+                        android:endY="398">
+                    <item android:color="#FFFFFFFF" android:offset="0.0"/>
+                    <item android:color="#FFC9B6FF" android:offset="0.45"/>
+                    <item android:color="#FFA57CFF" android:offset="0.75"/>
+                    <item android:color="#FFE4D9FF" android:offset="1.0"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M256,114A142,142 0,0 1,398 256" android:strokeWidth="2" android:strokeColor="#CCFFFFFF"/>
+        <!-- Horizontal transmission -->
+        <path android:pathData="M46,256H225M287,256H466" android:strokeWidth="4" android:strokeColor="#FFB794FF"/>
+        <!-- Tuning point -->
+        <path android:pathData="M235,256a21,21 0,1 0,42 0a21,21 0,1 0,-42 0z" android:strokeWidth="5" android:strokeColor="#FFD4C4FF"/>
+        <path android:pathData="M249,256a7,7 0,1 0,14 0a7,7 0,1 0,-14 0z" android:fillColor="#FFFFFFFF"/>
+        <!-- Signal markers -->
+        <path android:pathData="M252.5,114a3.5,3.5 0,1 0,7 0a3.5,3.5 0,1 0,-7 0z" android:fillColor="#FFFFFFFF"/>
+        <path android:pathData="M395,256a3,3 0,1 0,6 0a3,3 0,1 0,-6 0zM111,256a3,3 0,1 0,6 0a3,3 0,1 0,-6 0z" android:fillColor="#FFD4C4FF"/>
     </group>
 </vector>
