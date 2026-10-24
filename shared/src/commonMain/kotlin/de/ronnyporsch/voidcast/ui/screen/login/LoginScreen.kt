@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.screen.login
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +22,9 @@ import de.ronnyporsch.voidcast.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.voidcast.ui.components.urlPlaceholder
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
+import org.jetbrains.compose.resources.painterResource
+import voidcast.shared.generated.resources.Res
+import voidcast.shared.generated.resources.voidcast_logo
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel) {
@@ -39,10 +43,10 @@ fun LoginScreen(viewModel: LoginViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "\u266B",
-                fontSize = 48.sp,
-                color = AccentColor,
+            Image(
+                painter = painterResource(Res.drawable.voidcast_logo),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp),
             )
 
             Text(

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:aapt="http://schemas.android.com/aapt"
+        android:width="108dp"
+        android:height="108dp"
+        android:viewportWidth="420"
+        android:viewportHeight="420">
+    <!-- App logo; same artwork as webApp favicon.svg, cropped to the transmission line -->
+    <group android:translateX="-46" android:translateY="-46">
+        <!-- Halo -->
+        <path android:pathData="M66,256a190,190 0,1 0,380 0a190,190 0,1 0,-380 0z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                        android:type="radial"
+                        android:centerX="256"
+                        android:centerY="256"
+                        android:gradientRadius="190">
+                    <item android:color="#00FF00FF" android:offset="0"/>
+                    <item android:color="#1FFF00FF" android:offset="0.7"/>
+                    <item android:color="#52FF00FF" android:offset="0.88"/>
+                    <item android:color="#00FF00FF" android:offset="1"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- Atmospheric glow; vector drawables can't blur, so it's stacked translucent strokes -->
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="64" android:strokeColor="#10FF00FF"/>
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="44" android:strokeColor="#1CFF00FF"/>
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="28" android:strokeColor="#2EFF00FF"/>
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="16" android:strokeColor="#36FF00FF"/>
+        <!-- Cosmic ring -->
+        <path android:pathData="M114,256a142,142 0,1 0,284 0a142,142 0,1 0,-284 0z" android:strokeWidth="5">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                        android:type="linear"
+                        android:startX="114"
+                        android:startY="114"
+                        android:endX="398"
+                        android:endY="398">
+                    <item android:color="#FFFFB3FF" android:offset="0"/>
+                    <item android:color="#FFFF00FF" android:offset="0.45"/>
+                    <item android:color="#FFFF00FF" android:offset="0.75"/>
+                    <item android:color="#FFFF80FF" android:offset="1"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M256,114A142,142 0,0 1,398 256" android:strokeWidth="2" android:strokeColor="#CCFFB3FF"/>
+        <!-- Horizontal transmission -->
+        <path android:pathData="M46,256H225M287,256H466" android:strokeWidth="4" android:strokeColor="#FFFF00FF"/>
+        <!-- Tuning point -->
+        <path android:pathData="M235,256a21,21 0,1 0,42 0a21,21 0,1 0,-42 0z" android:strokeWidth="5" android:strokeColor="#FFFF00FF"/>
+        <path android:pathData="M249,256a7,7 0,1 0,14 0a7,7 0,1 0,-14 0z" android:fillColor="#FFFFB3FF"/>
+        <!-- Signal markers -->
+        <path android:pathData="M252.5,114a3.5,3.5 0,1 0,7 0a3.5,3.5 0,1 0,-7 0z" android:fillColor="#FFFFB3FF"/>
+        <path android:pathData="M395,256a3,3 0,1 0,6 0a3,3 0,1 0,-6 0zM111,256a3,3 0,1 0,6 0a3,3 0,1 0,-6 0z" android:fillColor="#FFFF00FF"/>
+    </group>
+</vector>
