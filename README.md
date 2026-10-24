@@ -1,10 +1,10 @@
-# KMusicPlayer
+# Voidcast
 
 A music player for **Jellyfin** servers that brings **YouTube Music** right next to the music already in the library.
 
 A search shows the songs already in the library alongside what's on YouTube Music. Anything can be played straight
 away, music videos included, and a single click downloads a song into the library, properly tagged and with its
-cover. KMusicPlayer runs on Android, on the desktop (Linux, Windows, macOS) and in the browser.
+cover. Voidcast runs on Android, on the desktop (Linux, Windows, macOS) and in the browser.
 
 ## Features
 
@@ -21,19 +21,19 @@ cover. KMusicPlayer runs on Android, on the desktop (Linux, Windows, macOS) and 
 ## Requirements
 
 - A **Jellyfin** server (version 12.2 or newer).
-- The **KMusicPlayer Jellyfin plugin** on that server for everything YouTube Music related.
+- The **Voidcast Jellyfin plugin** on that server for everything YouTube Music related.
 
 To install the plugin, add this repository in Jellyfin under *Dashboard → Plugins → Repositories*:
 
 ```
-https://raw.githubusercontent.com/ronnyporsch/KMusicPlayer/plugin-repository/manifest.json
+https://raw.githubusercontent.com/ronnyporsch/Voidcast/plugin-repository/manifest.json
 ```
 
-Then install *KMusicPlayer* from the catalog and restart Jellyfin. Updates will show up in the catalog
+Then install *Voidcast* from the catalog and restart Jellyfin. Updates will show up in the catalog
 automatically. The [plugin README](./jellyfin-plugin/README.md) explains the settings, for example how to sign in to
 YouTube.
 
-Without the plugin, KMusicPlayer works as a regular Jellyfin music player.
+Without the plugin, Voidcast works as a regular Jellyfin music player.
 
 ## Installing the app
 
@@ -43,7 +43,7 @@ Without the plugin, KMusicPlayer works as a regular Jellyfin music player.
 cd packaging/arch && makepkg -si
 ```
 
-This adds KMusicPlayer to the application menu and a `kmusicplayer` command. Music videos additionally need `vlc`.
+This adds Voidcast to the application menu and a `voidcast` command. Music videos additionally need `vlc`.
 
 ### Windows, macOS and other Linux systems
 

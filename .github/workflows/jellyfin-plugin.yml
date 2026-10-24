@@ -50,5 +50,5 @@ jobs:
           fi
           python3 .github/merge-plugin-manifest.py jellyfin-plugin/dist/manifest.json repository/manifest.json
           git -C repository add manifest.json
-          git -C repository commit -m "KMusicPlayer plugin $GITHUB_REF_NAME"
+          git -C repository commit -m "Voidcast plugin $GITHUB_REF_NAME"
           git -C repository push origin HEAD:plugin-repository

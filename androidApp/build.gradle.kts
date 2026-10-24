@@ -22,12 +22,11 @@ dependencies {
 val appVersion: String by rootProject.extra
 
 android {
-    namespace = "de.ronnyporsch.kmusicplayer"
+    namespace = "de.ronnyporsch.voidcast"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        // Kept from the old package name so existing installs update in place
-        applicationId = "de.ronnyporsch.open_rgb.kmusicplayer"
+        applicationId = "de.ronnyporsch.voidcast"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = appVersion.substringBefore('-').split('.').map(String::toInt)

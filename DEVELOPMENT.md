@@ -1,6 +1,6 @@
-# Developing KMusicPlayer
+# Developing Voidcast
 
-KMusicPlayer is written in Kotlin with Compose Multiplatform; one codebase runs as an Android app, a desktop app
+Voidcast is written in Kotlin with Compose Multiplatform; one codebase runs as an Android app, a desktop app
 (Linux, Windows, macOS) and a web app. The YouTube Music part is a Jellyfin plugin written in C#.
 
 ## Requirements

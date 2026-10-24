@@ -1,6 +1,6 @@
 # Builds the desktop app from the committed HEAD of the repository this PKGBUILD lives in.
 # Usage: cd packaging/arch && makepkg -si
-pkgname=kmusicplayer
+pkgname=voidcast
 # Derived from the latest vX.Y.Z tag at load time instead of a pkgver() function, so makepkg
 # never rewrites this file.
 _repo=${startdir%/packaging/arch}
@@ -11,15 +11,17 @@ pkgver=$(printf '%s.r%s.g%s' "${_tag#v}" \
 pkgrel=1
 pkgdesc='Music player for Jellyfin and Subsonic/Navidrome servers'
 arch=('x86_64' 'aarch64')
-url='https://github.com/ronnyporsch/KMusicPlayer'
+url='https://github.com/ronnyporsch/Voidcast'
 license=('custom')
 depends=('java-runtime>=21' 'hicolor-icon-theme')
+conflicts=('kmusicplayer')
+replaces=('kmusicplayer')
 makedepends=('git')
 optdepends=('vlc: YouTube video playback')
 options=('!debug')
 source=("$pkgname::git+file://$_repo"
-        'kmusicplayer.desktop'
-        'kmusicplayer.sh')
+        'voidcast.desktop'
+        'voidcast.sh')
 sha256sums=('SKIP'
             'SKIP'
             'SKIP')
@@ -31,9 +33,9 @@ build() {
 
 package() {
     cd "$pkgname"
-    install -Dm644 desktopApp/build/compose/jars/de.ronnyporsch.kmusicplayer-linux-*.jar \
+    install -Dm644 desktopApp/build/compose/jars/de.ronnyporsch.voidcast-linux-*.jar \
         "$pkgdir/usr/share/java/$pkgname/$pkgname.jar"
-    install -Dm755 "$srcdir/kmusicplayer.sh" "$pkgdir/usr/bin/$pkgname"
-    install -Dm644 "$srcdir/kmusicplayer.desktop" "$pkgdir/usr/share/applications/$pkgname.desktop"
+    install -Dm755 "$srcdir/voidcast.sh" "$pkgdir/usr/bin/$pkgname"
+    install -Dm644 "$srcdir/voidcast.desktop" "$pkgdir/usr/share/applications/$pkgname.desktop"
     install -Dm644 desktopApp/icons/icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/$pkgname.png"
 }

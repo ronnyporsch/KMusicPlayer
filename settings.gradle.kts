@@ -1,4 +1,4 @@
-rootProject.name = "KMusicPlayer"
+rootProject.name = "Voidcast"
 
 pluginManagement {
     repositories {

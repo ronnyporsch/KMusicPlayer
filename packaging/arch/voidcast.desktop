@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Voidcast
+GenericName=Music Player
+Comment=Music player for Jellyfin and Subsonic/Navidrome servers
+Exec=voidcast
+Icon=voidcast
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;jellyfin;navidrome;subsonic;youtube;
+StartupWMClass=de-ronnyporsch-voidcast-MainKt

@@ -23,11 +23,11 @@ val appVersion: String by rootProject.extra
 
 compose.desktop {
     application {
-        mainClass = "de.ronnyporsch.kmusicplayer.MainKt"
+        mainClass = "de.ronnyporsch.voidcast.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "de.ronnyporsch.kmusicplayer"
+            packageName = "de.ronnyporsch.voidcast"
             // Installers only accept <major>.<minor>.<patch>
             packageVersion = appVersion.substringBefore('-')
             // From suggestRuntimeModules; the bundled JRE only contains these plus the Compose defaults

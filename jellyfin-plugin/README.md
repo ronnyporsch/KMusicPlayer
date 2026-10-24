@@ -1,6 +1,6 @@
-# KMusicPlayer Jellyfin plugin
+# Voidcast Jellyfin plugin
 
-Lets KMusicPlayer clients (Android, desktop and web) search YouTube Music and download tracks into the Jellyfin
+Lets Voidcast clients (Android, desktop and web) search YouTube Music and download tracks into the Jellyfin
 music library. The plugin searches YouTube Music for the clients; when a client picks a track, the plugin
 
 1. downloads the best audio stream with [yt-dlp](https://github.com/yt-dlp/yt-dlp) (original codec, no re-encoding),
@@ -13,7 +13,7 @@ music library. The plugin searches YouTube Music for the clients; when a client 
 Clients can also search YouTube Music artists and browse their albums, singles and EPs and top songs; album tracks
 are streamed and downloaded like search results. Clients are told which tracks are already downloaded: the plugin
 reads the YouTube URL in the comment tag of the files in the download folder (once, then only new or changed files)
-and keeps the index in `<data dir>/kmusicplayer/download-index.json`. The plugin also streams YouTube Music tracks for playback and
+and keeps the index in `<data dir>/voidcast/download-index.json`. The plugin also streams YouTube Music tracks for playback and
 reports the codec/bitrate a download would get.
 
 Requires Jellyfin 12.2. The plugin ships the standalone [yt-dlp](https://github.com/yt-dlp/yt-dlp) release for
@@ -32,7 +32,7 @@ their SHA-256 checksums) into `.tools/` and bundles them; delete that folder to 
 ./build.sh [URL dist/ will be served from]
 ```
 
-This writes `dist/kmusicplayer_<version>.zip` and `dist/manifest.json`, a Jellyfin plugin repository manifest.
+This writes `dist/voidcast_<version>.zip` and `dist/manifest.json`, a Jellyfin plugin repository manifest.
 
 The version comes from the latest `plugin-v<major>.<minor>.<patch>` git tag plus the number of commits since then
 (`plugin-v1.9.0` and 2 commits: 1.9.0.2), so every build after a new commit has a version Jellyfin installs over the
@@ -54,17 +54,17 @@ release and adds the version to `manifest.json` on the `plugin-repository` branc
 
 Either
 
-- add `https://raw.githubusercontent.com/ronnyporsch/KMusicPlayer/plugin-repository/manifest.json` as a repository
-  under *Dashboard → Plugins → Repositories*, install *KMusicPlayer* from the catalog and restart Jellyfin (updates
+- add `https://raw.githubusercontent.com/ronnyporsch/Voidcast/plugin-repository/manifest.json` as a repository
+  under *Dashboard → Plugins → Repositories*, install *Voidcast* from the catalog and restart Jellyfin (updates
   then show up in the catalog too),
 - for a local build, serve `dist/` over HTTP (e.g. `cd dist && python3 -m http.server 8765`) and add
   `<URL>/manifest.json` as repository instead, where the URL must be reachable from the Jellyfin server (pass it to
   `build.sh`), or
-- unpack the zip into `<Jellyfin config dir>/plugins/KMusicPlayer_<version>/` and restart Jellyfin.
+- unpack the zip into `<Jellyfin config dir>/plugins/Voidcast_<version>/` and restart Jellyfin.
 
 ## Configuration
 
-*Dashboard → Plugins → KMusicPlayer*:
+*Dashboard → Plugins → Voidcast*:
 
 | Setting | Default |
 |---|---|
@@ -108,7 +108,7 @@ services:
 ```
 
 yt-dlp uses the most recently used profile below that folder. If the cookies can't be read, the plugin downloads
-without signing in and shows a warning in the KMusicPlayer settings.
+without signing in and shows a warning in the Voidcast settings.
 
 ## API
 
@@ -117,10 +117,10 @@ parameter).
 
 | Endpoint | |
 |---|---|
-| `GET /KMusicPlayer/Info` | Plugin version, whether yt-dlp is available and whether the user may download |
-| `GET /KMusicPlayer/YouTube/Search?query=...` | YouTube Music song search results |
-| `POST /KMusicPlayer/Downloads` | Queue a download; the body is a search result as returned by the search |
-| `GET /KMusicPlayer/Downloads[/{id}]` | Status of the user's downloads (`Queued`, `Downloading`, `Importing`, `Completed`, `Failed`) |
-| `GET /KMusicPlayer/YouTube/{videoId}/StreamInfo` | Codec and bitrate of the stream a download would get |
-| `POST /KMusicPlayer/YouTube/Downloaded[/Details]` | Which of the given video ids (JSON array) are already downloaded; `Details` adds codec and bitrate of the files |
-| `GET /KMusicPlayer/YouTube/{videoId}/Audio[?format=mp3]` | The track's audio, for playback |
+| `GET /Voidcast/Info` | Plugin version, whether yt-dlp is available and whether the user may download |
+| `GET /Voidcast/YouTube/Search?query=...` | YouTube Music song search results |
+| `POST /Voidcast/Downloads` | Queue a download; the body is a search result as returned by the search |
+| `GET /Voidcast/Downloads[/{id}]` | Status of the user's downloads (`Queued`, `Downloading`, `Importing`, `Completed`, `Failed`) |
+| `GET /Voidcast/YouTube/{videoId}/StreamInfo` | Codec and bitrate of the stream a download would get |
+| `POST /Voidcast/YouTube/Downloaded[/Details]` | Which of the given video ids (JSON array) are already downloaded; `Details` adds codec and bitrate of the files |
+| `GET /Voidcast/YouTube/{videoId}/Audio[?format=mp3]` | The track's audio, for playback |

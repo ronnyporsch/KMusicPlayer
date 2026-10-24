@@ -15,12 +15,12 @@ fi
 if [ -z "${CHANGELOG:-}" ] && [ -n "$TAG" ]; then
   CHANGELOG=$(git tag -l --format='%(contents)' "$TAG" | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
 fi
-CSPROJ=Jellyfin.Plugin.KMusicPlayer/Jellyfin.Plugin.KMusicPlayer.csproj
+CSPROJ=Jellyfin.Plugin.Voidcast/Jellyfin.Plugin.Voidcast.csproj
 TARGET_ABI="$(sed -n 's/.*Include="Jellyfin.Controller" Version="\([0-9.]*\)".*/\1/p' "$CSPROJ").0"
 BASE_URL=${1:-http://localhost:8765}
 DOTNET=${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}
 
-"$DOTNET" build Jellyfin.Plugin.KMusicPlayer -c Release -p:Version="$VERSION" --nologo -v quiet
+"$DOTNET" build Jellyfin.Plugin.Voidcast -c Release -p:Version="$VERSION" --nologo -v quiet
 
 # Standalone yt-dlp releases (bundle their own Python) and Deno (the JavaScript runtime yt-dlp needs to solve
 # YouTube's challenges, without it signed-in requests get no formats) for the architectures of the official Jellyfin
@@ -47,8 +47,8 @@ fi
 )
 
 rm -rf dist && mkdir -p dist
-ZIP="kmusicplayer_$VERSION.zip"
-python3 - "dist/$ZIP" Jellyfin.Plugin.KMusicPlayer/bin/Release/net10.0/Jellyfin.Plugin.KMusicPlayer.dll "$TOOLS" "${YT_DLP_ASSETS[*]}" "${DENO_ARCHS[*]}" <<'PY'
+ZIP="voidcast_$VERSION.zip"
+python3 - "dist/$ZIP" Jellyfin.Plugin.Voidcast/bin/Release/net10.0/Jellyfin.Plugin.Voidcast.dll "$TOOLS" "${YT_DLP_ASSETS[*]}" "${DENO_ARCHS[*]}" <<'PY'
 import sys, zipfile
 zip_path, dll, tools, yt_dlp_assets, deno_archs = sys.argv[1:]
 
@@ -59,7 +59,7 @@ def add_executable(z, name, data):
     z.writestr(info, data)
 
 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-    z.write(dll, "Jellyfin.Plugin.KMusicPlayer.dll")
+    z.write(dll, "Jellyfin.Plugin.Voidcast.dll")
     for asset in yt_dlp_assets.split():
         with open(f"{tools}/{asset}", "rb") as f:
             add_executable(z, "yt-dlp/" + asset, f.read())
@@ -73,10 +73,10 @@ import datetime, json, sys
 manifest_path, version, target_abi, source_url, checksum, changelog = sys.argv[1:]
 manifest = [{
     "guid": "38651385-45e3-4f8e-bc70-c45f5910a4a0",
-    "name": "KMusicPlayer",
-    "description": "Searches YouTube Music for KMusicPlayer clients and downloads the tracks they pick into the music library using yt-dlp.",
-    "overview": "YouTube Music search and downloads for KMusicPlayer",
-    "owner": "KMusicPlayer",
+    "name": "Voidcast",
+    "description": "Searches YouTube Music for Voidcast clients and downloads the tracks they pick into the music library using yt-dlp.",
+    "overview": "YouTube Music search and downloads for Voidcast",
+    "owner": "Voidcast",
     "category": "General",
     "versions": [{
         "version": version,
