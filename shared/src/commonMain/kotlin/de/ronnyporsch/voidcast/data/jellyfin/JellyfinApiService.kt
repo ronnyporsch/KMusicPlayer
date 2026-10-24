@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.data.jellyfin
 
+import de.ronnyporsch.voidcast.AppVersion
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.platform.createHttpClient
 import io.ktor.client.*
@@ -437,6 +438,6 @@ class JellyfinApiService {
     }
 
     companion object {
-        const val CLIENT_VERSION = "1.0.0"
+        const val CLIENT_VERSION = AppVersion
     }
 }

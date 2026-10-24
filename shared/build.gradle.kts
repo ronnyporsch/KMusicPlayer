@@ -11,6 +11,27 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+val appVersion: String by rootProject.extra
+
+// Exposes the app version to shared code as `de.ronnyporsch.voidcast.AppVersion`
+val generateAppVersion by tasks.registering {
+    val version = appVersion
+    val outputDir = layout.buildDirectory.dir("generated/appVersion/commonMain/kotlin")
+    inputs.property("appVersion", version)
+    outputs.dir(outputDir)
+    doLast {
+        val file = outputDir.get().file("de/ronnyporsch/voidcast/AppVersion.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            """
+            |package de.ronnyporsch.voidcast
+            |
+            |const val AppVersion = "$version"
+            |""".trimMargin()
+        )
+    }
+}
+
 kotlin {
     jvm()
 
@@ -66,6 +87,9 @@ kotlin {
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.datasource.okhttp)
             implementation(libs.androidx.media3.session)
+        }
+        commonMain {
+            kotlin.srcDir(generateAppVersion)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

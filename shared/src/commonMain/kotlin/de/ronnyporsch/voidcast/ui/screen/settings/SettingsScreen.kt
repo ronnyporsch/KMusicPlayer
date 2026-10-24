@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.voidcast.AppVersion
 import de.ronnyporsch.voidcast.ui.components.ServerTypeSelector
 import de.ronnyporsch.voidcast.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.voidcast.ui.components.urlPlaceholder
@@ -213,6 +214,12 @@ fun SettingsScreen(
 
                 Text(info, style = MaterialTheme.typography.bodyMedium, color = SpotifyLightGray)
             }
+
+            Spacer(Modifier.height(16.dp))
+
+            SectionHeader("About")
+
+            Text("Voidcast $AppVersion", style = MaterialTheme.typography.bodyMedium, color = SpotifyLightGray)
 
             Spacer(Modifier.height(100.dp))
         }

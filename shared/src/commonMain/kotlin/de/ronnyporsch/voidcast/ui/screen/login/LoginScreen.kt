@@ -15,10 +15,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.voidcast.AppVersion
 import de.ronnyporsch.voidcast.ui.components.ServerTypeSelector
 import de.ronnyporsch.voidcast.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.voidcast.ui.components.urlPlaceholder
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
+import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel) {
@@ -47,6 +49,12 @@ fun LoginScreen(viewModel: LoginViewModel) {
                 text = "Voidcast",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
+            )
+
+            Text(
+                text = "Version $AppVersion",
+                style = MaterialTheme.typography.bodySmall,
+                color = SpotifyLightGray,
             )
 
             Text(
