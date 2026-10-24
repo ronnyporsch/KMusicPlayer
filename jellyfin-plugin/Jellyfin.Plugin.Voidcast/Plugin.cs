@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Jellyfin.Plugin.Voidcast.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
@@ -18,7 +17,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
-        MigrateConfiguration(applicationPaths);
     }
 
     public override string Name => "Voidcast";
@@ -28,19 +26,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Description => "Searches YouTube Music for Voidcast clients and downloads the tracks they pick into the music library using yt-dlp.";
 
     public static Plugin? Instance { get; private set; }
-
-    /// <summary>
-    /// The configuration file is named after the assembly, so copies the one of the plugin's former name, KMusicPlayer.
-    /// </summary>
-    private static void MigrateConfiguration(IApplicationPaths applicationPaths)
-    {
-        var path = Path.Combine(applicationPaths.PluginConfigurationsPath, "Jellyfin.Plugin.Voidcast.xml");
-        var oldPath = Path.Combine(applicationPaths.PluginConfigurationsPath, "Jellyfin.Plugin.KMusicPlayer.xml");
-        if (!File.Exists(path) && File.Exists(oldPath))
-        {
-            File.Copy(oldPath, path);
-        }
-    }
 
     public IEnumerable<PluginPageInfo> GetPages()
     {

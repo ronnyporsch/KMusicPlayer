@@ -5,20 +5,7 @@ import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
 import de.ronnyporsch.voidcast.domain.model.ServerType
 import java.util.prefs.Preferences
 
-private val prefs = Preferences.userNodeForPackage(AppSettings::class.java).also(::migrateFromOldPackages)
-
-/** Copies settings saved under an old package node (KMusicPlayer, before that `open_rgb`) once. */
-private fun migrateFromOldPackages(prefs: Preferences) {
-    if (prefs.keys().isNotEmpty()) return
-    val root = Preferences.userRoot()
-    val oldPath = listOf(
-        "/de/ronnyporsch/kmusicplayer/domain/model",
-        "/de/ronnyporsch/open_rgb/kmusicplayer/domain/model",
-    ).firstOrNull(root::nodeExists) ?: return
-    val old = root.node(oldPath)
-    old.keys().forEach { key -> old.get(key, null)?.let { prefs.put(key, it) } }
-    prefs.flush()
-}
+private val prefs = Preferences.userNodeForPackage(AppSettings::class.java)
 
 actual fun saveSettings(settings: AppSettings) {
     prefs.put("serverType", settings.serverType.name)

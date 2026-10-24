@@ -8,12 +8,7 @@ import java.io.IOException
 private val dataDir: File by lazy {
     val base = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
         ?: (System.getProperty("user.home") + "/.local/share")
-    File(base, "voidcast").apply {
-        // Moves the data of the app's former name, KMusicPlayer
-        val old = File(base, "kmusicplayer")
-        if (!exists() && old.isDirectory) old.renameTo(this)
-        mkdirs()
-    }
+    File(base, "voidcast").apply { mkdirs() }
 }
 
 actual suspend fun readAppFile(name: String): String? = withContext(Dispatchers.IO) {

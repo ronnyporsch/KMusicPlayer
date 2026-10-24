@@ -6,8 +6,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 
 private const val SETTINGS_KEY = "voidcast_settings"
-/** Key of the app's former name, KMusicPlayer. */
-private const val OLD_SETTINGS_KEY = "kmusicplayer_settings"
 private val json = Json { ignoreUnknownKeys = true }
 
 actual fun saveSettings(settings: AppSettings) {
@@ -21,7 +19,7 @@ actual fun saveSettings(settings: AppSettings) {
 
 actual fun loadSettings(): AppSettings? {
     return try {
-        (localStorage.getItem(SETTINGS_KEY) ?: localStorage.getItem(OLD_SETTINGS_KEY))?.let {
+        localStorage.getItem(SETTINGS_KEY)?.let {
             json.decodeFromString<AppSettings>(it)
         }
     } catch (e: Exception) {

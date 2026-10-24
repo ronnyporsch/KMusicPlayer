@@ -35,22 +35,7 @@ public partial class DownloadIndex
     public DownloadIndex(ILogger<DownloadIndex> logger, IApplicationPaths applicationPaths)
     {
         _logger = logger;
-        var dir = Path.Combine(applicationPaths.DataPath, "voidcast");
-        // Keeps the index of the plugin's former name, KMusicPlayer, so the files needn't be read again
-        var oldDir = Path.Combine(applicationPaths.DataPath, "kmusicplayer");
-        if (!Directory.Exists(dir) && Directory.Exists(oldDir))
-        {
-            try
-            {
-                Directory.Move(oldDir, dir);
-            }
-            catch (IOException e)
-            {
-                logger.LogWarning(e, "Can't move {OldDir} to {Dir}", oldDir, dir);
-            }
-        }
-
-        _indexPath = Path.Combine(dir, "download-index.json");
+        _indexPath = Path.Combine(applicationPaths.DataPath, "voidcast", "download-index.json");
     }
 
     /// <summary>
