@@ -22,7 +22,11 @@ public record YouTubeAlbumTrack(
     string Artist,
     IReadOnlyList<YouTubeArtistDto> Artists,
     /// <summary>In seconds, 0 if unknown.</summary>
-    int Duration);
+    int Duration,
+    /// <summary>Identifies the track within the album's playlist, see <see cref="YouTubeMusicClient.GetAlbumAsync"/>.</summary>
+    string? PlaylistSetVideoId,
+    /// <summary>Whether <see cref="VideoId"/> is a music video rather than the audio track.</summary>
+    bool IsVideo);
 
 public record YouTubeAlbum(
     string Title,
@@ -167,7 +171,43 @@ public partial class YouTubeMusicClient
     public async Task<YouTubeAlbum?> GetAlbumAsync(string albumId, CancellationToken cancellationToken)
     {
         var root = await PostAsync("browse", new JsonObject { ["browseId"] = albumId }, cancellationToken).ConfigureAwait(false);
-        return ParseAlbum(root);
+        var album = ParseAlbum(root);
+        // Albums with music videos list those instead of the audio tracks, sometimes the same video for several tracks
+        // (e.g. a single's edit and extended mix); the album's playlist lists the audio tracks
+        var playlistId = AlbumPlaylistRegex().Match(String(Path(root, "microformat", "microformatDataRenderer"), "urlCanonical") ?? string.Empty);
+        return album != null && album.Tracks.Any(track => track.IsVideo) && playlistId.Success
+            ? await WithAudioTracksAsync(album, playlistId.Groups[1].Value, cancellationToken).ConfigureAwait(false)
+            : album;
+    }
+
+    private async Task<YouTubeAlbum> WithAudioTracksAsync(YouTubeAlbum album, string playlistId, CancellationToken cancellationToken)
+    {
+        JsonNode? root;
+        try
+        {
+            root = await PostAsync("browse", new JsonObject { ["browseId"] = "VL" + playlistId }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException)
+        {
+            // The videos are better than nothing
+            return album;
+        }
+
+        var videoIds = Path(root, "contents", "twoColumnBrowseResultsRenderer", "secondaryContents", "sectionListRenderer", "contents").Items()
+            .SelectMany(section => Path(section, "musicPlaylistShelfRenderer", "contents").Items())
+            .Select(item => Path(item, "musicResponsiveListItemRenderer", "playlistItemData"))
+            .Select(data => (SetVideoId: String(data, "playlistSetVideoId"), VideoId: String(data, "videoId")))
+            .Where(item => item.SetVideoId != null && item.VideoId != null)
+            .DistinctBy(item => item.SetVideoId)
+            .ToDictionary(item => item.SetVideoId!, item => item.VideoId!);
+        return album with
+        {
+            Tracks = album.Tracks
+                .Select(track => track.IsVideo && track.PlaylistSetVideoId != null && videoIds.TryGetValue(track.PlaylistSetVideoId, out var videoId)
+                    ? track with { VideoId = videoId, IsVideo = false }
+                    : track)
+                .ToList(),
+        };
     }
 
     /// <summary>Looks up an album with its playable tracks for clients, or returns null if unavailable.</summary>
@@ -423,7 +463,9 @@ public partial class YouTubeMusicClient
                     int.TryParse(String(Path(renderer, "index", "runs").Items().FirstOrDefault(), "text"), out var number) ? number : null,
                     song?.Artist ?? string.Empty,
                     song?.Artists ?? [],
-                    song?.Duration ?? 0);
+                    song?.Duration ?? 0,
+                    String(Path(renderer, "playlistItemData"), "playlistSetVideoId"),
+                    song?.IsVideo ?? false);
             })
             .Where(track => track.Title.Length > 0)
             .ToList();
@@ -499,6 +541,9 @@ public partial class YouTubeMusicClient
 
     [GeneratedRegex(@"^MPREb_[\w-]+$")]
     private static partial Regex AlbumIdRegex();
+
+    [GeneratedRegex(@"[?&]list=(OLAK5uy_[\w-]+)")]
+    private static partial Regex AlbumPlaylistRegex();
 }
 
 internal static class JsonNodeExtensions
