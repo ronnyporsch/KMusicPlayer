@@ -9,13 +9,11 @@ pkgver=$(printf '%s.r%s.g%s' "${_tag#v}" \
     "$(git -C "$_repo" rev-list --count "$_tag"..HEAD 2>/dev/null || echo 0)" \
     "$(git -C "$_repo" rev-parse --short HEAD)")
 pkgrel=1
-pkgdesc='Music player for Jellyfin and Subsonic/Navidrome servers'
+pkgdesc='Music player for Jellyfin with a Youtube Integration'
 arch=('x86_64' 'aarch64')
 url='https://github.com/ronnyporsch/Voidcast'
 license=('custom')
 depends=('java-runtime>=21' 'hicolor-icon-theme')
-conflicts=('kmusicplayer')
-replaces=('kmusicplayer')
 makedepends=('git')
 optdepends=('vlc: YouTube video playback')
 options=('!debug')
