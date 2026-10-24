@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app UI is always dark, so the window (and the splash screen derived from it) is too -->
+    <style name="Theme.Voidcast" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+    </style>
+</resources>
